@@ -6,17 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
+	"mime"
+	"net/http"
+	"os"
+	"time"
+
 	"github.com/karrick/gobls"
 	"github.com/mraron/njudge/pkg/language"
 	"github.com/mraron/njudge/pkg/language/sandbox"
 	"github.com/mraron/njudge/pkg/problems"
 	"github.com/mraron/njudge/pkg/problems/evaluation"
 	"golang.org/x/time/rate"
-	"io"
-	"log/slog"
-	"mime"
-	"net/http"
-	"time"
 )
 
 type ResultCallback func(Result) error
@@ -117,6 +119,43 @@ func (j *Judge) Judge(ctx context.Context, sub Submission, callback ResultCallba
 	<-done
 	j.Logger.Info("🏁\tdone", "submission_id", sub.ID)
 	return &res, err
+}
+
+type InputOutput struct {
+	In  string
+	Out string
+}
+
+type TestcasesResponse struct {
+	Testcases []InputOutput
+}
+
+func (j *Judge) GetTestcases(problemName string) (*TestcasesResponse, error) {
+	problem, err := j.ProblemStore.GetProblem(problemName)
+	if err != nil {
+		return nil, err
+	}
+	st, err := problem.StatusSkeleton("")
+	if err != nil {
+		return nil, err
+	}
+	var testcases []InputOutput
+	for _, testset := range st.Feedback {
+		for _, group := range testset.Groups {
+			for _, tc := range group.Testcases {
+				in, err := os.ReadFile(tc.InputPath)
+				if err != nil {
+					return nil, err
+				}
+				out, err := os.ReadFile(tc.AnswerPath)
+				if err != nil {
+					return nil, err
+				}
+				testcases = append(testcases, InputOutput{In: string(in), Out: string(out)})
+			}
+		}
+	}
+	return &TestcasesResponse{Testcases: testcases}, nil
 }
 
 type Client struct {

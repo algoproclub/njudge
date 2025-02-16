@@ -111,6 +111,21 @@ func (s Server) PostJudgeHandler() echo.HandlerFunc {
 	}
 }
 
+func (s Server) GetTestcasesHandler() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		problemName := c.QueryParam("problem")
+		judge, ok := s.Judger.(*Judge)
+		if !ok {
+			return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
+		}
+		testcases, err := judge.GetTestcases(problemName)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+		return c.JSON(http.StatusOK, testcases)
+	}
+}
+
 func (s Server) Run() error {
 	go func() {
 		for {
@@ -123,9 +138,11 @@ func (s Server) Run() error {
 
 	e := echo.New()
 	e.Use(slogecho.New(s.Logger))
+	e.Use(middleware.Gzip()) // testcases can be large
 	e.Use(middleware.Recover())
 
 	e.POST("/judge", s.PostJudgeHandler())
+	e.GET("/testcases", s.GetTestcasesHandler())
 
 	return e.Start(":" + s.Config.Port)
 }
