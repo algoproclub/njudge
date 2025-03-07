@@ -135,8 +135,8 @@ func (s Server) GetTestcasesHandler() echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid file name")
 		}
 		index, err := strconv.Atoi(match[2])
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid file name")
+		if err != nil || index >= len(testcases) {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid testcase index")
 		}
 		if match[1] == "input" {
 			return c.File(testcases[index].InputPath)
