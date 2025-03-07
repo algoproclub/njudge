@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -74,7 +76,7 @@ func (s Server) PostJudgeHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		sub := Submission{}
 		if err := c.Bind(&sub); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest,err.Error())
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 
 		inited := false
@@ -113,16 +115,34 @@ func (s Server) PostJudgeHandler() echo.HandlerFunc {
 
 func (s Server) GetTestcasesHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		problemName := c.QueryParam("problem")
+		problemName := c.Param("problem")
 		judge, ok := s.Judger.(*Judge)
 		if !ok {
 			return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 		}
 		testcases, err := judge.GetTestcases(problemName)
+		if errors.Is(err, problems.ErrorProblemNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, err.Error())
+		}
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
-		return c.JSON(http.StatusOK, testcases)
+		// extract number from input0.txt, input1.txt, ...
+		// or from output0.txt, output1.txt, ...
+		file := c.Param("file")
+		match := regexp.MustCompile(`^(input|output)(\d+)\.txt$`).FindStringSubmatch(file)
+		if match == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid file name")
+		}
+		index, err := strconv.Atoi(match[2])
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid file name")
+		}
+		if match[1] == "input" {
+			return c.File(testcases[index].InputPath)
+		} else {
+			return c.File(testcases[index].AnswerPath)
+		}
 	}
 }
 
@@ -142,7 +162,8 @@ func (s Server) Run() error {
 	e.Use(middleware.Recover())
 
 	e.POST("/judge", s.PostJudgeHandler())
-	e.GET("/testcases", s.GetTestcasesHandler())
+	e.GET("/testcases/:problem/:file", s.GetTestcasesHandler())
+	e.HEAD("/testcases/:problem/:file", s.GetTestcasesHandler())
 
 	return e.Start(":" + s.Config.Port)
 }

@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/karrick/gobls"
@@ -121,16 +120,7 @@ func (j *Judge) Judge(ctx context.Context, sub Submission, callback ResultCallba
 	return &res, err
 }
 
-type InputOutput struct {
-	In  string
-	Out string
-}
-
-type TestcasesResponse struct {
-	Testcases []InputOutput
-}
-
-func (j *Judge) GetTestcases(problemName string) (*TestcasesResponse, error) {
+func (j *Judge) GetTestcases(problemName string) ([]problems.Testcase, error) {
 	problem, err := j.ProblemStore.GetProblem(problemName)
 	if err != nil {
 		return nil, err
@@ -139,23 +129,13 @@ func (j *Judge) GetTestcases(problemName string) (*TestcasesResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	var testcases []InputOutput
+	var testcases []problems.Testcase
 	for _, testset := range st.Feedback {
 		for _, group := range testset.Groups {
-			for _, tc := range group.Testcases {
-				in, err := os.ReadFile(tc.InputPath)
-				if err != nil {
-					return nil, err
-				}
-				out, err := os.ReadFile(tc.AnswerPath)
-				if err != nil {
-					return nil, err
-				}
-				testcases = append(testcases, InputOutput{In: string(in), Out: string(out)})
-			}
+			testcases = append(testcases, group.Testcases...)
 		}
 	}
-	return &TestcasesResponse{Testcases: testcases}, nil
+	return testcases, nil
 }
 
 type Client struct {
