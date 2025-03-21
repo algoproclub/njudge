@@ -3,6 +3,10 @@ package web
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+
 	"github.com/antonlindstrom/pgstore"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -16,8 +20,6 @@ import (
 	"github.com/mraron/njudge/internal/web/templates/i18n"
 	"github.com/quasoft/memstore"
 	slogecho "github.com/samber/slog-echo"
-	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -62,6 +64,18 @@ func (s *Server) routes(e *echo.Echo) {
 	e.GET("/submission/rejudge/:id", handlers.RejudgeSubmission(s.Submissions), user.RequireLoginMiddleware()).Name = "rejudgeSubmission"
 	e.GET("/task_archive", handlers.GetTaskArchive(s.TaskArchiveService))
 	e.GET("/ranklist/", problemset.GetRanklist(s.ProblemsetRanklistService))
+
+	judgeUrl, err := url.Parse("http://judge:8080")
+	if err != nil {
+		e.Logger.Fatal(err)
+	}
+	e.Any("/testcases/:problem/:file", func(c echo.Context) error { return nil },
+		middleware.Proxy(middleware.NewRoundRobinBalancer([]*middleware.ProxyTarget{
+			{
+				URL: judgeUrl,
+			},
+		})),
+	)
 
 	ps := e.Group("/problemset", problemset.SetMiddleware(s.Problemsets))
 	ps.GET("/:name/", problemset.GetProblemList(s.ProblemStore, s.Problems, s.Categories, s.ProblemListQuery, s.ProblemInfoQuery, s.Tags))
@@ -195,6 +209,10 @@ func (s *Server) SetupEcho(ctx context.Context, e *echo.Echo) {
 	e.Use(session.Middleware(store))
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
+		Skipper: func(c echo.Context) bool {
+			// these should already be compressed
+			return strings.HasPrefix(c.Request().URL.Path, "/testcases/")
+		},
 	}))
 	e.Use(middleware.CSRFWithConfig(middleware.CSRFConfig{
 		ContextKey:  templates.CSRFTokenContextKey,
