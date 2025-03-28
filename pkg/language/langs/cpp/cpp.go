@@ -2,11 +2,12 @@ package cpp
 
 import (
 	"context"
-	"github.com/mraron/njudge/pkg/language/memory"
-	"github.com/mraron/njudge/pkg/language/sandbox"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/mraron/njudge/pkg/language/memory"
+	"github.com/mraron/njudge/pkg/language/sandbox"
 
 	"github.com/mraron/njudge/pkg/language"
 )
@@ -50,13 +51,32 @@ func (c Cpp) DefaultFilename() string {
 	return "main.cpp"
 }
 
+func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Writer, extraArgs []string) (*sandbox.Status, error) {
+	rc := sandbox.RunConfig{
+		MaxProcesses:     200,
+		InheritEnv:       true,
+		TimeLimit:        10 * time.Second,
+		MemoryLimit:      512 * memory.MiB,
+		Stdout:           output,
+		Stderr:           output,
+		WorkingDirectory: s.Pwd(),
+	}
+
+	return s.Run(
+		ctx,
+		rc,
+		"/usr/bin/g++",
+		append(c.compileArgs, extraArgs...)...,
+	)
+}
+
 func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, stderr io.Writer, extras []sandbox.File) (*sandbox.File, error) {
 	err := sandbox.CreateFile(s, f)
 	if err != nil {
 		return nil, err
 	}
 
-	params := f.Name
+	extraParams := []string{f.Name}
 	for _, extra := range extras {
 		err := sandbox.CreateFile(s, extra)
 		if err != nil {
@@ -64,27 +84,11 @@ func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, std
 		}
 
 		if !strings.HasSuffix(extra.Name, ".h") {
-			params += " "
-			params += extra.Name
+			extraParams = append(extraParams, extra.Name)
 		}
 	}
 
-	rc := sandbox.RunConfig{
-		MaxProcesses:     200,
-		InheritEnv:       true,
-		TimeLimit:        10 * time.Second,
-		MemoryLimit:      512 * memory.MiB,
-		Stdout:           stderr,
-		Stderr:           stderr,
-		WorkingDirectory: s.Pwd(),
-	}
-
-	if _, err := s.Run(
-		ctx,
-		rc,
-		"/usr/bin/g++",
-		sandbox.SplitArgs(strings.Join(c.compileArgs, " ")+" "+params)...,
-	); err != nil {
+	if _, err := c.runCompiler(ctx, s, stderr, extraParams); err != nil {
 		return nil, err
 	}
 
