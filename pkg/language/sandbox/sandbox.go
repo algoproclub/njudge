@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/mraron/njudge/pkg/language/memory"
 	"io"
 	"io/fs"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/mraron/njudge/pkg/language/memory"
 )
 
 // ErrorSandboxNotInitialized should returned when a Run is called on a Sandbox without a prior Init call.
@@ -25,6 +26,7 @@ var ErrorSandboxNotInitialized = errors.New("initialize the sandbox first")
 type FS interface {
 	Pwd() string
 	Create(name string) (io.WriteCloser, error)
+	MkdirAll(name string, perm os.FileMode) error
 	MakeExecutable(name string) error
 
 	fs.FS
