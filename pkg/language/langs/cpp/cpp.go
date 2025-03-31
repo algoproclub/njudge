@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/mraron/njudge/pkg/language/memory"
 	"github.com/mraron/njudge/pkg/language/sandbox"
 
@@ -22,7 +25,7 @@ type Cpp struct {
 	compileArgs []string
 
 	pchCacheDir  string
-	pchCacheSize int
+	pchCacheSize int64
 }
 
 type Option func(*Cpp)
@@ -34,7 +37,7 @@ func WithCompileArgs(args []string) Option {
 	}
 }
 
-func WithPCHCache(dir string, cacheSize int) Option {
+func WithPCHCache(dir string, cacheSize int64) Option {
 	return func(cpp *Cpp) {
 		cpp.pchCacheDir = dir
 		cpp.pchCacheSize = cacheSize
@@ -83,6 +86,52 @@ func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Write
 	)
 }
 
+func (c Cpp) cleanUpPCHCache() {
+	type Entry struct {
+		Name string
+		Time int64
+		Size int64
+	}
+	entries := []Entry{}
+	var totalSize int64 = 0
+
+	filepath.WalkDir(c.pchCacheDir, func(path string, file os.DirEntry, err error) error {
+		if file.IsDir() {
+			return filepath.SkipDir
+		}
+
+		if !strings.HasSuffix(file.Name(), ".gch") {
+			return nil
+		}
+
+		if info, err := file.Info(); err == nil {
+			entries = append(entries, Entry{
+				Name: file.Name(),
+				Time: info.ModTime().Unix(),
+				Size: info.Size(),
+			})
+
+			totalSize += info.Size()
+		}
+		return nil
+	})
+
+	slices.SortFunc(entries, func(i, j Entry) int {
+		return int(i.Time - j.Time)
+	})
+
+	for _, entry := range entries {
+		if totalSize <= c.pchCacheSize {
+			break
+		}
+
+		if err := os.Remove(c.pchCacheDir + "/" + entry.Name); err != nil {
+			continue
+		}
+		totalSize -= entry.Size
+	}
+}
+
 func (c Cpp) buildPCH(ctx context.Context, s sandbox.Sandbox) *os.File {
 	if c.pchCacheDir == "" {
 		return nil
@@ -120,6 +169,10 @@ func (c Cpp) buildPCH(ctx context.Context, s sandbox.Sandbox) *os.File {
 	}
 	defer file.Source.Close()
 
+	lock := flock.New(c.pchCacheDir + "/cache.lock")
+	lock.Lock()
+	defer lock.Unlock()
+
 	outFile, err := os.Create(c.pchCacheDir + "/" + pchFileName)
 	if err != nil {
 		return nil
@@ -131,7 +184,7 @@ func (c Cpp) buildPCH(ctx context.Context, s sandbox.Sandbox) *os.File {
 	outFile.Sync()
 	outFile.Seek(0, io.SeekStart)
 
-	// TODO: Remove old files if pchCacheSize is reached
+	c.cleanUpPCHCache()
 
 	return outFile
 }

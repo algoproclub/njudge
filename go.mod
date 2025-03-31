@@ -34,6 +34,7 @@ require (
 	github.com/a-h/templ v0.2.778
 	github.com/antonlindstrom/pgstore v0.0.0-20220421113606-e3a6e3fed12a
 	github.com/erni27/imcache v1.2.0
+	github.com/gofrs/flock v0.12.1
 	github.com/karrick/gobls v1.3.5
 	github.com/quasoft/memstore v0.0.0-20191010062613-2bce066d2b0b
 	github.com/samber/slog-echo v1.14.1
