@@ -38,6 +38,13 @@ func (o OsFS) Create(name string) (io.WriteCloser, error) {
 	return os.Create(o.getPathTo(name))
 }
 
+func (o OsFS) MkdirAll(name string, perm os.FileMode) error {
+	if !o.inited {
+		return ErrorSandboxNotInitialized
+	}
+	return os.MkdirAll(o.getPathTo(name), perm)
+}
+
 func (o OsFS) MakeExecutable(name string) error {
 	if !o.inited {
 		return ErrorSandboxNotInitialized
