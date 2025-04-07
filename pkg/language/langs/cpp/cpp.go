@@ -73,7 +73,7 @@ func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, std
 		MaxProcesses:     200,
 		InheritEnv:       true,
 		TimeLimit:        10 * time.Second,
-		MemoryLimit:      256 * memory.MiB,
+		MemoryLimit:      512 * memory.MiB,
 		Stdout:           stderr,
 		Stderr:           stderr,
 		WorkingDirectory: s.Pwd(),
