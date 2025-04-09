@@ -129,7 +129,7 @@ func (i *Isolate) Run(_ context.Context, config RunConfig, toRun string, toRunAr
 	}
 	defer func(metafile *os.File) {
 		_ = metafile.Close()
-		_ = os.Remove(filepath.Join(os.TempDir(), metafile.Name()))
+		_ = os.Remove(metafile.Name())
 	}(metafile)
 
 	args = append(args, fmt.Sprintf("--meta=%s", metafile.Name()))
