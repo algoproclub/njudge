@@ -2,11 +2,18 @@ package cpp
 
 import (
 	"context"
-	"github.com/mraron/njudge/pkg/language/memory"
-	"github.com/mraron/njudge/pkg/language/sandbox"
+	"crypto/sha1"
+	"encoding/hex"
 	"io"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/gofrs/flock"
+	"github.com/mraron/njudge/pkg/language/memory"
+	"github.com/mraron/njudge/pkg/language/sandbox"
 
 	"github.com/mraron/njudge/pkg/language"
 )
@@ -16,6 +23,9 @@ type Cpp struct {
 	name string
 
 	compileArgs []string
+
+	pchCacheDir  string
+	pchCacheSize int64
 }
 
 type Option func(*Cpp)
@@ -24,6 +34,13 @@ func WithCompileArgs(args []string) Option {
 	return func(cpp *Cpp) {
 		cpp.compileArgs = make([]string, len(args))
 		copy(cpp.compileArgs, args)
+	}
+}
+
+func WithPCHCache(dir string, cacheSize int64) Option {
+	return func(cpp *Cpp) {
+		cpp.pchCacheDir = dir
+		cpp.pchCacheSize = cacheSize
 	}
 }
 
@@ -50,13 +67,135 @@ func (c Cpp) DefaultFilename() string {
 	return "main.cpp"
 }
 
+func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Writer, extraArgs []string) (*sandbox.Status, error) {
+	rc := sandbox.RunConfig{
+		MaxProcesses:     200,
+		InheritEnv:       true,
+		TimeLimit:        10 * time.Second,
+		MemoryLimit:      512 * memory.MiB,
+		Stdout:           output,
+		Stderr:           output,
+		WorkingDirectory: s.Pwd(),
+	}
+
+	return s.Run(
+		ctx,
+		rc,
+		"/usr/bin/g++",
+		append(c.compileArgs, extraArgs...)...,
+	)
+}
+
+func (c Cpp) cleanUpPCHCache() {
+	type Entry struct {
+		Name string
+		Time int64
+		Size int64
+	}
+	entries := []Entry{}
+	var totalSize int64 = 0
+
+	filepath.WalkDir(c.pchCacheDir, func(path string, file os.DirEntry, err error) error {
+		if file.IsDir() {
+			return filepath.SkipDir
+		}
+
+		if !strings.HasSuffix(file.Name(), ".gch") {
+			return nil
+		}
+
+		if info, err := file.Info(); err == nil {
+			entries = append(entries, Entry{
+				Name: file.Name(),
+				Time: info.ModTime().Unix(),
+				Size: info.Size(),
+			})
+
+			totalSize += info.Size()
+		}
+		return nil
+	})
+
+	slices.SortFunc(entries, func(i, j Entry) int {
+		return int(i.Time - j.Time)
+	})
+
+	for _, entry := range entries {
+		if totalSize <= c.pchCacheSize {
+			break
+		}
+
+		if err := os.Remove(c.pchCacheDir + "/" + entry.Name); err != nil {
+			continue
+		}
+		totalSize -= entry.Size
+	}
+}
+
+func (c Cpp) buildPCH(ctx context.Context, s sandbox.Sandbox) *os.File {
+	if c.pchCacheDir == "" {
+		return nil
+	}
+
+	// Pre-compiled headers can only be used with the same compiler and flags they were built with.
+	cacheKey := sha1.New()
+
+	compilerInfo, err := os.Stat("/usr/bin/g++")
+	if err != nil {
+		return nil
+	}
+	io.WriteString(cacheKey, compilerInfo.ModTime().String())
+	io.WriteString(cacheKey, strings.Join(c.compileArgs, " "))
+	pchFileName := hex.EncodeToString(cacheKey.Sum(nil)) + ".gch"
+
+	if cachedFile, err := os.Open(c.pchCacheDir + "/" + pchFileName); err == nil {
+		return cachedFile
+	}
+
+	if err := sandbox.CreateFile(s, sandbox.File{
+		Name:   "pch.h",
+		Source: io.NopCloser(strings.NewReader("#include <bits/stdc++.h>")),
+	}); err != nil {
+		return nil
+	}
+
+	if _, err := c.runCompiler(ctx, s, io.Discard, []string{"pch.h", "-o", pchFileName}); err != nil {
+		return nil
+	}
+
+	file, err := sandbox.ExtractFile(s, pchFileName)
+	if err != nil {
+		return nil
+	}
+	defer file.Source.Close()
+
+	lock := flock.New(c.pchCacheDir + "/cache.lock")
+	lock.Lock()
+	defer lock.Unlock()
+
+	outFile, err := os.Create(c.pchCacheDir + "/" + pchFileName)
+	if err != nil {
+		return nil
+	}
+
+	if _, err := io.Copy(outFile, file.Source); err != nil {
+		return nil
+	}
+	outFile.Sync()
+	outFile.Seek(0, io.SeekStart)
+
+	c.cleanUpPCHCache()
+
+	return outFile
+}
+
 func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, stderr io.Writer, extras []sandbox.File) (*sandbox.File, error) {
 	err := sandbox.CreateFile(s, f)
 	if err != nil {
 		return nil, err
 	}
 
-	params := f.Name
+	extraParams := []string{f.Name}
 	for _, extra := range extras {
 		err := sandbox.CreateFile(s, extra)
 		if err != nil {
@@ -64,27 +203,23 @@ func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, std
 		}
 
 		if !strings.HasSuffix(extra.Name, ".h") {
-			params += " "
-			params += extra.Name
+			extraParams = append(extraParams, extra.Name)
 		}
 	}
 
-	rc := sandbox.RunConfig{
-		MaxProcesses:     200,
-		InheritEnv:       true,
-		TimeLimit:        10 * time.Second,
-		MemoryLimit:      512 * memory.MiB,
-		Stdout:           stderr,
-		Stderr:           stderr,
-		WorkingDirectory: s.Pwd(),
+	if pch := c.buildPCH(ctx, s); pch != nil {
+		s.MkdirAll("/pch/bits", 0755)
+		err = sandbox.CreateFile(s, sandbox.File{
+			Name:   "/pch/bits/stdc++.h.gch",
+			Source: pch,
+		})
+
+		if err == nil {
+			extraParams = append(extraParams, "-isystem", "pch")
+		}
 	}
 
-	if _, err := s.Run(
-		ctx,
-		rc,
-		"/usr/bin/g++",
-		sandbox.SplitArgs(strings.Join(c.compileArgs, " ")+" "+params)...,
-	); err != nil {
+	if _, err := c.runCompiler(ctx, s, stderr, extraParams); err != nil {
 		return nil, err
 	}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/mraron/njudge/pkg/problems/evaluation"
 	"io"
 	"io/fs"
+	"os"
 	"strings"
 )
 
@@ -41,6 +42,10 @@ func (r *recordingSandbox) CreateFile(file sandbox.File) error {
 
 func (r *recordingSandbox) Create(name string) (io.WriteCloser, error) {
 	return closer{io.Discard}, nil
+}
+
+func (r *recordingSandbox) MkdirAll(name string, perm os.FileMode) error {
+	return nil
 }
 
 func (r *recordingSandbox) MakeExecutable(name string) error {
