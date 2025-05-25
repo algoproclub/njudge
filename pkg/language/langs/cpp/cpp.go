@@ -72,7 +72,7 @@ func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Write
 		MaxProcesses:     200,
 		InheritEnv:       true,
 		TimeLimit:        10 * time.Second,
-		MemoryLimit:      512 * memory.MiB,
+		MemoryLimit:      768 * memory.MiB,
 		Stdout:           output,
 		Stderr:           output,
 		WorkingDirectory: s.Pwd(),
