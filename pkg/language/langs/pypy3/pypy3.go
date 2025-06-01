@@ -43,6 +43,14 @@ func (PyPy3) Run(ctx context.Context, s sandbox.Sandbox, binary sandbox.File, st
 		Stdin:            stdin,
 		Stdout:           stdout,
 		WorkingDirectory: s.Pwd(),
+		DirectoryMaps: []sandbox.DirectoryMap{
+			{
+				// pypy reads sysfs to determine CPU cache size on AArch64
+				Inside:  "sys",
+				Outside: "sysfs",
+				Options: []sandbox.DirectoryMapOption{sandbox.MountFS},
+			},
+		},
 	}
 	return s.Run(ctx, rc, "/usr/bin/pypy3", binary.Name)
 }
