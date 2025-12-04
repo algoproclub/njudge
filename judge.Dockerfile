@@ -5,7 +5,7 @@ RUN apt-get update
 RUN apt-get install -y wget gcc g++ git build-essential
 RUN apt-get install -y libcap-dev systemd libsystemd-dev pkgconf
 WORKDIR /app
-RUN git clone --depth 1 --branch v2.0 https://github.com/ioi/isolate.git
+RUN git clone --depth 1 --branch v2.2.1 https://github.com/ioi/isolate.git
 WORKDIR /app/isolate
 RUN make isolate isolate-cg-keeper
 
