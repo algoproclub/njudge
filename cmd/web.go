@@ -37,6 +37,7 @@ var DefaultWebConfig = WebConfig{
 		TimeZone:       "Europe/Budapest",
 		CookieSecret:   "svp3r_s3cr3t",
 		GoogleAuth:     web.GoogleAuthConfig{},
+		MailerSend:     web.MailerSendConfig{},
 		Sendgrid:       web.SendgridConfig{},
 		SMTP:           web.SMTPConfig{},
 		DatabaseConfig: _dockerDatabaseConfig,
