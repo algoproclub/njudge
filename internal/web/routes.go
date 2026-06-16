@@ -69,6 +69,10 @@ func (s *Server) routes(e *echo.Echo) {
 		e.Logger.Fatal(err)
 	}
 	e.Any("/testcases/:problem/:file", func(c echo.Context) error { return nil },
+		middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins: s.Config.CORSOriginsForTests,
+			AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodOptions},
+		}),
 		middleware.Proxy(middleware.NewRoundRobinBalancer([]*middleware.ProxyTarget{
 			{
 				URL: judgeUrl,
