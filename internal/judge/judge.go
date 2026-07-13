@@ -57,14 +57,23 @@ func (j *Judge) Judge(ctx context.Context, sub Submission, callback ResultCallba
 	res := problems.Status{}
 
 	j.Logger.Info("🏗️\tcompilation step", "submission_id", sub.ID)
-	compileSandbox, _ := j.SandboxProvider.Get()
-	if err := compileSandbox.Init(ctx); err != nil {
-		return nil, err
-	}
 	taskType := problem.GetTaskType()
 	res.CompilationStatus = problems.DuringCompilation // this has no real effect
-	compilationResult, err := taskType.Compile(ctx, evaluation.NewByteSolution(lang, sub.Source), compileSandbox)
-	j.SandboxProvider.Put(compileSandbox)
+	compilationResult, err := func() (*problems.CompilationResult, error) {
+		compileSandbox, err := j.SandboxProvider.Get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer j.SandboxProvider.Put(compileSandbox)
+
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err = compileSandbox.Init(ctx); err != nil {
+			return nil, err
+		}
+		return taskType.Compile(ctx, evaluation.NewByteSolution(lang, sub.Source), compileSandbox)
+	}()
 	if err != nil {
 		return nil, err
 	}

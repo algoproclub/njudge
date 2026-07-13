@@ -159,7 +159,8 @@ type Sandbox interface {
 
 // Provider can be used to store Sandboxes
 type Provider interface {
-	Get() (Sandbox, error)
+	// Get acquires a Sandbox, blocking until one is available or ctx is done.
+	Get(ctx context.Context) (Sandbox, error)
 	Put(s Sandbox) Provider
 }
 
@@ -171,8 +172,17 @@ func NewProvider() *ChanProvider {
 	return &ChanProvider{make(chan Sandbox, 100)}
 }
 
-func (sp *ChanProvider) Get() (Sandbox, error) {
-	return <-sp.sandboxes, nil
+func (sp *ChanProvider) Get(ctx context.Context) (Sandbox, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	select {
+	case s := <-sp.sandboxes:
+		return s, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (sp *ChanProvider) Put(s Sandbox) Provider {

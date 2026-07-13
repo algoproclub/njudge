@@ -196,11 +196,14 @@ func mapVerdict(status *sandbox.Status, testcase *problems.Testcase) bool {
 }
 
 func (r *BasicRunner) Run(ctx context.Context, sandboxProvider sandbox.Provider, testcase *problems.Testcase) error {
-	s, err := sandboxProvider.Get()
+	s, err := sandboxProvider.Get(ctx)
 	if err != nil {
 		return err
 	}
 	defer sandboxProvider.Put(s)
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	if err = s.Init(ctx); err != nil {
 		return err
 	}
@@ -354,12 +357,15 @@ func (r *InteractiveRunner) SetSolution(ctx context.Context, solution problems.S
 	return setSolution(ctx, &r.userBinName, &r.userBin, solution)
 }
 
-func (r *InteractiveRunner) getSandboxes(provider sandbox.Provider) (userSandbox, interactorSandbox sandbox.Sandbox, err error) {
-	userSandbox, err = provider.Get()
+func (r *InteractiveRunner) getSandboxes(ctx context.Context, provider sandbox.Provider) (userSandbox, interactorSandbox sandbox.Sandbox, err error) {
+	userSandbox, err = provider.Get(ctx)
 	if err != nil {
 		return
 	}
-	interactorSandbox, err = provider.Get()
+	interactorSandbox, err = provider.Get(ctx)
+	if err != nil {
+		provider.Put(userSandbox)
+	}
 	return
 }
 
@@ -472,7 +478,7 @@ func (t *TaskYAMLUserInteractorExecute) ExecuteInteractor(ctx context.Context, i
 }
 
 func (r *InteractiveRunner) Run(ctx context.Context, sandboxProvider sandbox.Provider, testcase *problems.Testcase) error {
-	userSandbox, interactorSandbox, err := r.getSandboxes(sandboxProvider)
+	userSandbox, interactorSandbox, err := r.getSandboxes(ctx, sandboxProvider)
 	if err != nil {
 		return err
 	}
@@ -482,7 +488,13 @@ func (r *InteractiveRunner) Run(ctx context.Context, sandboxProvider sandbox.Pro
 		sandboxProvider.Put(userSandbox)
 		sandboxProvider.Put(interactorSandbox)
 	}()
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	if err = userSandbox.Init(ctx); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if err = interactorSandbox.Init(ctx); err != nil {
