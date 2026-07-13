@@ -24,8 +24,9 @@ type Cpp struct {
 
 	compileArgs []string
 
-	pchCacheDir  string
-	pchCacheSize int64
+	pchCacheDir     string
+	pchCacheSize    int64
+	maxArtifactSize int64
 }
 
 type Option func(*Cpp)
@@ -41,6 +42,14 @@ func WithPCHCache(dir string, cacheSize int64) Option {
 	return func(cpp *Cpp) {
 		cpp.pchCacheDir = dir
 		cpp.pchCacheSize = cacheSize
+	}
+}
+
+// WithMaxArtifactSize limits the size of the compiled a.out artifact extracted
+// from the sandbox. A non-positive value preserves unlimited extraction.
+func WithMaxArtifactSize(maxBytes int64) Option {
+	return func(cpp *Cpp) {
+		cpp.maxArtifactSize = maxBytes
 	}
 }
 
@@ -221,6 +230,10 @@ func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, std
 
 	if _, err := c.runCompiler(ctx, s, stderr, extraParams); err != nil {
 		return nil, err
+	}
+
+	if c.maxArtifactSize > 0 {
+		return sandbox.ExtractFileWithLimit(s, "a.out", c.maxArtifactSize)
 	}
 
 	return sandbox.ExtractFile(s, "a.out")

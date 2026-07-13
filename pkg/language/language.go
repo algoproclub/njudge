@@ -19,6 +19,9 @@ type Language interface {
 	ID() string
 	DisplayName() string
 	DefaultFilename() string
+	// Compile compiles f and transfers ownership of the returned File.Source to
+	// the caller. The caller must close it, including when an interpreted
+	// language returns the input file itself.
 	Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, stderr io.Writer, extras []sandbox.File) (*sandbox.File, error) //TODO remove extras?
 	Run(ctx context.Context, s sandbox.Sandbox, binary sandbox.File, stdin io.Reader, stdout io.Writer, tl time.Duration, ml memory.Amount) (*sandbox.Status, error)
 }

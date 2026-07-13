@@ -8,8 +8,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,9 @@ import (
 // ErrorSandboxNotInitialized should returned when a Run is called on a Sandbox without a prior Init call.
 var ErrorSandboxNotInitialized = errors.New("initialize the sandbox first")
 
+// ErrFileTooLarge is returned when a sandbox file exceeds its extraction limit.
+var ErrFileTooLarge = errors.New("sandbox file exceeds extraction limit")
+
 // FS is a file system abstraction for sandboxes.
 type FS interface {
 	Pwd() string
@@ -33,7 +38,12 @@ type FS interface {
 }
 
 // CreateFile is a convenience method for creating a file inside a sandbox with the given content.
-func CreateFile(fs FS, c File) error {
+// It consumes c.Source and closes it before returning, including when creating or copying the file fails.
+func CreateFile(fs FS, c File) (err error) {
+	defer func() {
+		err = errors.Join(err, c.Source.Close())
+	}()
+
 	type createFiler interface {
 		CreateFile(c File) error
 	}
@@ -52,14 +62,25 @@ func CreateFile(fs FS, c File) error {
 		_ = f.Close()
 	}(f)
 
-	if _, err = io.Copy(f, c.Source); err != nil {
-		return err
-	}
-	return c.Source.Close()
+	_, err = io.Copy(f, c.Source)
+	return err
 }
 
 // ExtractFile is a convenience method for getting the content of a file from inside the sandbox.
 func ExtractFile(s FS, name string) (*File, error) {
+	return extractFile(s, name, nil)
+}
+
+// ExtractFileWithLimit gets a sandbox file's content while limiting it to maxBytes bytes.
+// It reads at most maxBytes+1 bytes and returns ErrFileTooLarge when the limit is exceeded.
+func ExtractFileWithLimit(s FS, name string, maxBytes int64) (*File, error) {
+	if maxBytes < 0 {
+		return nil, fmt.Errorf("maxBytes must be non-negative: %d", maxBytes)
+	}
+	return extractFile(s, name, &maxBytes)
+}
+
+func extractFile(s FS, name string, maxBytes *int64) (*File, error) {
 	bin, err := s.Open(name)
 	if err != nil {
 		return nil, err
@@ -68,7 +89,18 @@ func ExtractFile(s FS, name string) (*File, error) {
 		_ = bin.Close()
 	}(bin)
 
-	binaryContent, err := io.ReadAll(bin)
+	var source io.Reader = bin
+	if maxBytes != nil && *maxBytes < math.MaxInt64 {
+		source = io.LimitReader(bin, *maxBytes+1)
+	}
+
+	binaryContent, err := io.ReadAll(source)
+	if maxBytes != nil && int64(len(binaryContent)) > *maxBytes {
+		return nil, errors.Join(
+			fmt.Errorf("%w: %q exceeds %d bytes", ErrFileTooLarge, name, *maxBytes),
+			err,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
