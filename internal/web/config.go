@@ -96,6 +96,8 @@ type Config struct {
 	Port     string `mapstructure:"port" yaml:"port"`
 	TimeZone string `mapstructure:"time_zone" yaml:"time_zone"`
 
+	CORSOriginsForTests []string `mapstructure:"cors_origins_for_tests" yaml:"cors_origins_for_tests"`
+
 	CookieSecret string `mapstructure:"cookie_secret" yaml:"cookie_secret"`
 
 	GoogleAuth GoogleAuthConfig `mapstructure:"google_auth" yaml:"google_auth"`
