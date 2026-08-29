@@ -118,7 +118,7 @@ func (d *Dummy) Run(ctx context.Context, config RunConfig, command string, comma
 	err := cmd.Run()
 	st.Time = time.Since(started)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) { //TODO validate
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			st.Verdict = VerdictTL
 		} else if strings.HasPrefix(err.Error(), "exit status") || strings.HasPrefix(err.Error(), "signal:") { // TODO
 			st.Verdict = VerdictRE

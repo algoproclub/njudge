@@ -146,10 +146,19 @@ func (i *Isolate) Run(_ context.Context, config RunConfig, toRun string, toRunAr
 	cmd.Dir = config.WorkingDirectory
 	_ = cmd.Run()
 
-	st := Status{
-		Verdict: VerdictOK,
+	st, err := parseIsolateMetadata(metafile)
+	if err != nil {
+		return nil, err
 	}
-	sc := bufio.NewScanner(metafile)
+
+	logger.Info("🧾\tresult status", "status", st)
+	return st, nil
+}
+
+func parseIsolateMetadata(r io.Reader) (*Status, error) {
+	st := &Status{Verdict: VerdictOK}
+	oomKilled := false
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		lst := strings.Split(sc.Text(), ":")
 		switch lst[0] {
@@ -157,6 +166,8 @@ func (i *Isolate) Run(_ context.Context, config RunConfig, toRun string, toRunAr
 		case "cg-mem":
 			mem, _ := strconv.Atoi(lst[1])
 			st.Memory += memory.Amount(mem) * memory.KiB
+		case "cg-oom-killed":
+			oomKilled = true
 		case "time":
 			tmp, _ := strconv.ParseFloat(lst[1], 32)
 			st.Time = time.Duration(tmp*1000) * time.Millisecond
@@ -173,14 +184,19 @@ func (i *Isolate) Run(_ context.Context, config RunConfig, toRun string, toRunAr
 			}
 		case "exitcode":
 			st.ExitCode, _ = strconv.Atoi(lst[1])
+		case "exitsig":
+			st.Signal, _ = strconv.Atoi(lst[1])
 		}
 	}
-	if err = sc.Err(); err != nil {
+	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("failed to scan metafile: %w", err)
 	}
 
-	logger.Info("🧾\tresult status", "status", st)
-	return &st, nil
+	if oomKilled {
+		st.Verdict = VerdictML
+	}
+
+	return st, nil
 }
 
 func (i *Isolate) Cleanup(_ context.Context) error {
