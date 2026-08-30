@@ -75,6 +75,10 @@ func (s *Server) routes(e *echo.Echo) {
 				URL: judgeUrl,
 			},
 		})),
+		middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins: s.Config.CORSOriginsForTests,
+			AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodOptions},
+		}),
 	)
 
 	ps := e.Group("/problemset", problemset.SetMiddleware(s.Problemsets))
