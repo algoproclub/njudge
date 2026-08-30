@@ -63,7 +63,7 @@ func (CSharp) Run(ctx context.Context, s sandbox.Sandbox, binary sandbox.File, s
 		MemoryLimit:      ml,
 		WorkingDirectory: s.Pwd(),
 	}
-	return s.Run(ctx, rc, "/usr/bin/mono", "main.exe")
+	return s.Run(ctx, rc, "/usr/bin/mono", binary.Name)
 }
 
 func init() {

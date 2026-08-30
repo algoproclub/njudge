@@ -14,12 +14,20 @@ import (
 
 type BytesSolution struct {
 	lang language.Language
+	name string
 	src  []byte
 }
 
 func NewByteSolution(lang language.Language, src []byte) *BytesSolution {
+	return NewNamedByteSolution(lang, lang.DefaultFilename(), src)
+}
+
+// NewNamedByteSolution creates a byte-backed solution with an explicit filename.
+// It is useful for compiled artifacts whose names differ from source filenames.
+func NewNamedByteSolution(lang language.Language, name string, src []byte) *BytesSolution {
 	return &BytesSolution{
 		lang: lang,
+		name: name,
 		src:  src,
 	}
 }
@@ -30,7 +38,7 @@ func (b *BytesSolution) GetLanguage() language.Language {
 
 func (b *BytesSolution) GetFile(ctx context.Context) (sandbox.File, error) {
 	return sandbox.File{
-		Name:   b.lang.DefaultFilename(),
+		Name:   b.name,
 		Source: io.NopCloser(bytes.NewBuffer(b.src)),
 	}, nil
 }

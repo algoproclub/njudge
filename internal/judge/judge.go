@@ -85,11 +85,12 @@ func (j *Judge) Judge(ctx context.Context, sub Submission, callback ResultCallba
 		return &res, nil
 	}
 
-	binary, err := io.ReadAll(compilationResult.CompiledFile.Source)
-	if err != nil {
+	compiledFileName := compilationResult.CompiledFile.Name
+	binary, readErr := io.ReadAll(compilationResult.CompiledFile.Source)
+	closeErr := compilationResult.CompiledFile.Source.Close()
+	if err = errors.Join(readErr, closeErr); err != nil {
 		return nil, fmt.Errorf("failed to read binary: %w", err)
 	}
-	_ = compilationResult.CompiledFile.Source.Close()
 
 	st, err := problem.StatusSkeleton("")
 	if err != nil {
@@ -122,7 +123,7 @@ func (j *Judge) Judge(ctx context.Context, sub Submission, callback ResultCallba
 			Logger: j.Logger.With("submission_id", sub.ID),
 		}
 	}
-	res, err = eval.Evaluate(ctx, *st, evaluation.NewByteSolution(lang, binary), j.SandboxProvider, updater)
+	res, err = eval.Evaluate(ctx, *st, evaluation.NewNamedByteSolution(lang, compiledFileName, binary), j.SandboxProvider, updater)
 	res.CompilerOutput = problems.Base64String(compilationResult.CompilationMessage)
 	<-done
 	j.Logger.Info("🏁\tdone", "submission_id", sub.ID)
