@@ -75,6 +75,13 @@ type GoogleAuthConfig struct {
 	Secret    string `mapstructure:"secret" yaml:"secret"`
 }
 
+type MailerSendConfig struct {
+	Enabled       bool   `yaml:"enabled" mapstructure:"enabled"`
+	ApiKey        string `yaml:"api_key" mapstructure:"api_key"`
+	SenderName    string `yaml:"sender_name" mapstructure:"sender_name"`
+	SenderAddress string `yaml:"sender_address" mapstructure:"sender_address"`
+}
+
 type SendgridConfig struct {
 	Enabled       bool   `yaml:"enabled" mapstructure:"enabled"`
 	ApiKey        string `yaml:"api_key" mapstructure:"api_key"`
@@ -100,6 +107,8 @@ type Config struct {
 
 	GoogleAuth GoogleAuthConfig `mapstructure:"google_auth" yaml:"google_auth"`
 
+	MailerSend MailerSendConfig `yaml:"mailersend" mapstructure:"mailersend"`
+
 	Sendgrid SendgridConfig `yaml:"sendgrid" mapstructure:"sendgrid"`
 
 	SMTP SMTPConfig `yaml:"smtp" mapstructure:"smtp"`
@@ -121,6 +130,12 @@ func (s Config) EmailService() email.Service {
 			SenderName:    s.Sendgrid.SenderName,
 			SenderAddress: s.Sendgrid.SenderAddress,
 			APIKey:        s.Sendgrid.ApiKey,
+		}
+	} else if s.MailerSend.Enabled {
+		return email.MailerSendService{
+			SenderName:    s.MailerSend.SenderName,
+			SenderAddress: s.MailerSend.SenderAddress,
+			APIKey:        s.MailerSend.ApiKey,
 		}
 	} else {
 		if s.Mode == ModeDevelopment || s.Mode == ModeDebug || s.Mode == ModeDemo {
@@ -160,6 +175,11 @@ func (s Config) Valid() error {
 	if s.Sendgrid.Enabled {
 		if s.Sendgrid.ApiKey == "" {
 			return fmt.Errorf("sendgrid api key is required")
+		}
+	}
+	if s.MailerSend.Enabled {
+		if s.MailerSend.ApiKey == "" {
+			return fmt.Errorf("mailersend api key is required")
 		}
 	}
 	return nil

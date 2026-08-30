@@ -9,6 +9,8 @@ import (
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"gopkg.in/gomail.v2"
+
+	"github.com/mailersend/mailersend-go"
 )
 
 // Service sends and email
@@ -64,6 +66,40 @@ func (s SendgridService) Send(ctx context.Context, m Mail) error {
 
 	client := sendgrid.NewSendClient(s.APIKey)
 	_, err := client.SendWithContext(ctx, message)
+	return err
+}
+
+type MailerSendService struct {
+	SenderName    string
+	SenderAddress string
+	APIKey        string
+}
+
+func (s MailerSendService) Send(ctx context.Context, m Mail) error {
+	client := mailersend.NewMailersend(s.APIKey)
+
+	message := client.Email.NewMessage()
+
+	from := mailersend.Recipient{Name: s.SenderName, Email: s.SenderAddress}
+	recipients := []mailersend.Recipient{}
+
+	for _, addr := range m.Recipients {
+		recipients = append(recipients, mailersend.Recipient{
+			Name:  "",
+			Email: addr,
+		})
+	}
+
+	htmlContent := m.Message
+	plainTextContent := StripHTMLRegex(m.Message)
+
+	message.SetSubject(m.Subject)
+	message.SetFrom(from)
+	message.SetRecipients(recipients)
+	message.SetHTML(htmlContent)
+	message.SetText(plainTextContent)
+
+	_, err := client.Email.Send(ctx, message)
 	return err
 }
 
