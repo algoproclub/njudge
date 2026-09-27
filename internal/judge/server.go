@@ -85,14 +85,19 @@ func (s Server) PostJudgeHandler() echo.HandlerFunc {
 				return
 			}
 			inited = true
-			c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			c.Response().Header().Set(echo.HeaderContentType, "application/x-ndjson")
+			c.Response().Header().Set("X-Accel-Buffering", "no")
 			c.Response().WriteHeader(statusCode)
 		}
-		enc := json.NewEncoder(c.Response().Writer)
+		enc := json.NewEncoder(c.Response())
 
 		st, err := s.Judger.Judge(c.Request().Context(), sub, func(result Result) error {
 			initResponse(http.StatusOK)
-			return enc.Encode(result)
+			if err := enc.Encode(result); err != nil {
+				return err
+			}
+			c.Response().Flush()
+			return nil
 		})
 		res := Result{
 			Status: st,
