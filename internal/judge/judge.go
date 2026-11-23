@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,7 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/karrick/gobls"
 	"github.com/mraron/njudge/pkg/language"
 	"github.com/mraron/njudge/pkg/language/sandbox"
 	"github.com/mraron/njudge/pkg/problems"
@@ -168,10 +168,20 @@ func (c Client) Judge(ctx context.Context, sub Submission, callback ResultCallba
 		return nil, err
 	}
 
-	s := gobls.NewScanner(resp.Body)
+	// the lines are read with ReadBytes, because bufio.Scanner can't handle lines of arbitrary length
+	r := bufio.NewReader(resp.Body)
 	var res Result
-	for s.Scan() {
-		if err2 := json.Unmarshal(s.Bytes(), &res); err2 != nil {
+	for {
+		line, readErr := r.ReadBytes('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			err = errors.Join(err, readErr)
+			break
+		}
+		if len(line) == 0 {
+			break
+		}
+
+		if err2 := json.Unmarshal(line, &res); err2 != nil {
 			err = errors.Join(err, err2)
 		}
 
@@ -182,8 +192,12 @@ func (c Client) Judge(ctx context.Context, sub Submission, callback ResultCallba
 				err = errors.Join(err, err2)
 			}
 		}
+
+		if readErr != nil {
+			break
+		}
 	}
-	err = errors.Join(err, s.Err(), resp.Body.Close())
+	err = errors.Join(err, resp.Body.Close())
 	if res.Error != "" {
 		err = errors.Join(err, errors.New(res.Error))
 	}

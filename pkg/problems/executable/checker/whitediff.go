@@ -1,13 +1,14 @@
 package checker
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"github.com/spf13/afero"
 	"io"
 	"strings"
 
-	"github.com/karrick/gobls"
 	"github.com/mraron/njudge/pkg/problems"
 )
 
@@ -75,6 +76,49 @@ func (w Whitediff) Check(ctx context.Context, testcase *problems.Testcase) error
 	return err
 }
 
+// lineScanner is like bufio.Scanner splitting lines, but it can handle lines of arbitrary length.
+type lineScanner struct {
+	r    *bufio.Reader
+	line []byte
+	err  error
+	done bool
+}
+
+func newLineScanner(r io.Reader) *lineScanner {
+	return &lineScanner{r: bufio.NewReader(r)}
+}
+
+func (s *lineScanner) Scan() bool {
+	s.line = nil
+	if s.done {
+		return false
+	}
+
+	line, err := s.r.ReadBytes('\n')
+	if err != nil {
+		s.done = true
+		if !errors.Is(err, io.EOF) {
+			s.err = err
+			return false
+		}
+		if len(line) == 0 {
+			return false
+		}
+	}
+
+	line = bytes.TrimSuffix(line, []byte{'\n'})
+	s.line = bytes.TrimSuffix(line, []byte{'\r'})
+	return true
+}
+
+func (s *lineScanner) Bytes() []byte {
+	return s.line
+}
+
+func (s *lineScanner) Err() error {
+	return s.err
+}
+
 var whitespaces = []byte{' ', '\t', '\n', '\x0b', '\x0c', '\r'}
 
 func canonicalize(str string) string {
@@ -102,7 +146,7 @@ func canonicalize(str string) string {
 //
 // [whitediff]: https://cms.readthedocs.io/en/v1.4/Task%20types.html#tasktypes-white-diff
 func DoWhitediff(a io.Reader, b io.Reader) (float64, error) {
-	x, y := gobls.NewScanner(a), gobls.NewScanner(b)
+	x, y := newLineScanner(a), newLineScanner(b)
 	eq := true
 	for {
 		hasA, hasB := x.Scan(), y.Scan()
