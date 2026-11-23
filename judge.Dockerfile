@@ -23,13 +23,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=judge_deps /out/ /
 
-# PyPy 8.0.1 (Python 3.12) from the official image
-COPY --from=pypy:3.12-8.0.1-trixie /opt/pypy /opt/pypy
-COPY --from=julia:1.10.1 /usr/local/julia/ /usr/local/julia
-COPY --from=nimlang/nim:1.6.18 /opt/nim /opt/nim
-RUN ln -s /opt/pypy/bin/pypy3 /usr/bin/pypy3 && \
+# PyPy 8.0.1 (Python 3.12) from the official image. PyPy, Julia and Nim live
+# under /usr/local, as isolate boxes only expose /usr, /bin and /lib*.
+COPY --from=pypy:3.12-8.0.1-trixie /opt/pypy /usr/local/pypy
+COPY --from=julia:1.13.4 /usr/local/julia/ /usr/local/julia
+COPY --from=nimlang/nim:1.6.18 /opt/nim /usr/local/nim
+RUN ln -s /usr/local/pypy/bin/pypy3 /usr/bin/pypy3 && \
     ln -s /usr/local/julia/bin/julia /usr/local/bin/julia && \
-    ln -s /opt/nim/bin/nim /usr/bin/nim
+    ln -s /usr/local/nim/bin/nim /usr/bin/nim
 
 WORKDIR /app
 COPY --from=njudge-bin /app/njudge ./njudge
