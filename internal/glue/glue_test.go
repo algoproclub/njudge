@@ -34,6 +34,10 @@ func (f FakeProblems) Get(ctx context.Context, ID int) (*njudge.Problem, error) 
 	return &f.Problem, nil
 }
 
+func (f FakeProblems) GetByIDs(ctx context.Context, IDs []int) (map[int]njudge.Problem, error) {
+	panic("implement me")
+}
+
 func (f FakeProblems) GetAll(ctx context.Context) ([]njudge.Problem, error) {
 	panic("implement me")
 }

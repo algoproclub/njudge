@@ -122,6 +122,24 @@ func (ps *Problems) getAll(ctx context.Context, mods ...qm.QueryMod) ([]njudge.P
 	return res, nil
 }
 
+func (ps *Problems) GetByIDs(ctx context.Context, IDs []int) (map[int]njudge.Problem, error) {
+	if len(IDs) == 0 {
+		return nil, nil
+	}
+
+	problems, err := ps.getAll(ctx, models.ProblemRelWhere.ID.IN(IDs))
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[int]njudge.Problem, len(problems))
+	for _, p := range problems {
+		res[p.ID] = p
+	}
+
+	return res, nil
+}
+
 func (ps *Problems) GetAll(ctx context.Context) ([]njudge.Problem, error) {
 	return ps.getAll(ctx)
 }

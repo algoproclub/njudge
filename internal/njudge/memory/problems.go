@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 
@@ -49,6 +50,23 @@ func (m *Problems) Get(ctx context.Context, ID int) (*njudge.Problem, error) {
 	}
 
 	return nil, njudge.ErrorProblemNotFound
+}
+
+func (m *Problems) GetByIDs(ctx context.Context, IDs []int) (map[int]njudge.Problem, error) {
+	res := make(map[int]njudge.Problem, len(IDs))
+	for _, ID := range IDs {
+		p, err := m.Get(ctx, ID)
+		if errors.Is(err, njudge.ErrorProblemNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		res[ID] = *p
+	}
+
+	return res, nil
 }
 
 func (m *Problems) GetAll(ctx context.Context) ([]njudge.Problem, error) {

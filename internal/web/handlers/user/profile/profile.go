@@ -7,6 +7,7 @@ import (
 	"github.com/mraron/njudge/internal/web/templates"
 	"github.com/mraron/njudge/internal/web/templates/i18n"
 	"net/http"
+	"slices"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -49,11 +50,21 @@ func GetProfile(sublist njudge.SubmissionListQuery, ps njudge.Problems, rs njudg
 		}
 		vm.RanklistPosition = pos
 
+		submissions := slices.Concat(solved.Submissions, attempted.Submissions)
+		problemIDs := make([]int, len(submissions))
+		for ind, sub := range submissions {
+			problemIDs[ind] = sub.ProblemID
+		}
+		problems, err := ps.GetByIDs(c.Request().Context(), problemIDs)
+		if err != nil {
+			return err
+		}
+
 		pass := func(from *[]njudge.Submission, to *[]templates.ProfileSubmission) error {
 			for _, sub := range *from {
-				p, err := ps.Get(c.Request().Context(), sub.ProblemID)
-				if err != nil {
-					return err
+				p, ok := problems[sub.ProblemID]
+				if !ok {
+					return njudge.ErrorProblemNotFound
 				}
 				*to = append(*to, templates.ProfileSubmission{
 					ID:          sub.ID,

@@ -108,27 +108,40 @@ func (s *SubmissionListQuery) GetPagedSubmissionList(ctx context.Context, req nj
 }
 
 func (s *SubmissionListQuery) getSubmissionListUserPredicate(ctx context.Context, userID int, pred func(njudge.Submission) bool, predExclude func(njudge.Submission) bool) (*njudge.SubmissionList, error) {
-	allSubmissions, _, err := s.getSubmissionList(ctx, njudge.SubmissionListRequest{
-		SortDir:   njudge.SortDESC,
-		SortField: njudge.SubmissionSortFieldID,
-		UserID:    userID,
-	})
-
+	// only the columns needed for listing are loaded, because the source and the status of the submissions are large
+	objs, err := models.Submissions(
+		qm.Select(
+			models.SubmissionColumns.ID,
+			models.SubmissionColumns.UserID,
+			models.SubmissionColumns.ProblemID,
+			models.SubmissionColumns.Verdict,
+			models.SubmissionColumns.Submitted,
+		),
+		models.SubmissionWhere.UserID.EQ(userID),
+		qm.OrderBy(models.SubmissionColumns.ID+" DESC"),
+	).All(ctx, s.db)
 	if err != nil {
 		return nil, err
 	}
 
 	last := make(map[int]njudge.Submission)
 	exclude := make(map[int]bool)
-	for ind := range allSubmissions.Submissions {
-		if pred(allSubmissions.Submissions[ind]) {
-			last[allSubmissions.Submissions[ind].ProblemID] = allSubmissions.Submissions[ind]
+	for _, obj := range objs {
+		sub := njudge.Submission{
+			ID:        obj.ID,
+			UserID:    obj.UserID,
+			ProblemID: obj.ProblemID,
+			Verdict:   DatabaseVerdictToNjudge(obj.Verdict),
+			Submitted: obj.Submitted,
 		}
 
-		if predExclude(allSubmissions.Submissions[ind]) {
-			exclude[allSubmissions.Submissions[ind].ProblemID] = true
+		if pred(sub) {
+			last[sub.ProblemID] = sub
 		}
 
+		if predExclude(sub) {
+			exclude[sub.ProblemID] = true
+		}
 	}
 
 	submissions := make([]njudge.Submission, 0)
