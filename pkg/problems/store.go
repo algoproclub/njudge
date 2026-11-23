@@ -1,6 +1,8 @@
 package problems
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -62,7 +64,8 @@ type FsStore struct {
 	root         string
 	ignorePrefix bool
 
-	ByPath map[string]string
+	ByPath     map[string]string
+	signatures map[string]string
 
 	problems     map[string]Problem
 	problemsList []string
@@ -98,6 +101,7 @@ func NewFsStore(root string, options ...FsStoreOptions) *FsStore {
 		problems:     make(map[string]Problem),
 		problemsList: make([]string, 0),
 		ByPath:       make(map[string]string),
+		signatures:   make(map[string]string),
 	}
 	for _, opt := range options {
 		opt(fsStore)
@@ -207,6 +211,18 @@ func (s *FsStore) UpdateProblems() error {
 			}
 		}
 
+		// unchanged problems aren't parsed again
+		s.RLock()
+		name, known := s.ByPath[path]
+		oldSignature := s.signatures[path]
+		s.RUnlock()
+		if known && name == getId(path) && oldSignature != "" {
+			if sig, err := s.signature(path); err == nil && sig == oldSignature {
+				lst = append(lst, getId(path))
+				return filepath.SkipDir
+			}
+		}
+
 		if err := s.UpdateProblem(path, getId(path)); err != nil {
 			if !errors.Is(err, ErrorNoMatch) {
 				errs.Errors = append(errs.Errors, fmt.Errorf("%s: %w", info.Name(), err))
@@ -249,16 +265,64 @@ func (pw ProblemWrapper) Name() string {
 	return pw.NameOverride
 }
 
+// signature returns a hash of the names, sizes, modification times and modes of the files in a problem's directory.
+func (s *FsStore) signature(path string) (string, error) {
+	h := sha1.New()
+	if err := afero.Walk(s.fs, path, func(p string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if p != path && info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+			return filepath.SkipDir
+		}
+
+		rel, err := filepath.Rel(path, p)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(h, "%s|%d|%d|%d\n", rel, info.Size(), info.ModTime().UnixNano(), info.Mode())
+		return nil
+	}); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 func (s *FsStore) UpdateProblem(path string, name string) error {
-	s.Lock()
-	defer s.Unlock()
+	// The signature of a known problem is calculated before parsing, so changes made during the parse aren't missed.
+	// New paths might not be problems at all (for example categories), so theirs is calculated only after a successful parse.
+	s.RLock()
+	_, known := s.ByPath[path]
+	s.RUnlock()
+
+	signature := ""
+	if known {
+		signature, _ = s.signature(path)
+	}
 
 	prob, err := s.cs.Parse(s.fs, path)
 	if err != nil {
+		s.Lock()
+		delete(s.signatures, path)
+		s.Unlock()
 		return err
 	}
+	if !known {
+		signature, _ = s.signature(path)
+	}
+
+	s.Lock()
+	defer s.Unlock()
 
 	s.ByPath[path] = name
 	s.problems[name] = ProblemWrapper{prob, name}
+	if signature != "" {
+		s.signatures[path] = signature
+	} else {
+		delete(s.signatures, path)
+	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mraron/njudge/pkg/problems"
 	"github.com/spf13/afero"
@@ -96,4 +97,41 @@ func TestFSStore(t *testing.T) {
 	if has, err := store.HasProblem("nono"); has {
 		t.Error("nono", has, err)
 	}
+}
+
+func TestFSStoreSkipsUnchangedProblems(t *testing.T) {
+	parsed := 0
+	configStore := problems.NewConfigList()
+	assert.Nil(t, configStore.Register("dummy", func(f afero.Fs, s string) (problems.Problem, error) {
+		parsed++
+		return nil, nil
+	}, newDummyProblemConfig("feladat.xhtml").identifier()))
+
+	f := afero.NewMemMapFs()
+	_ = f.MkdirAll("problems/category/aplusb", 0755)
+	_ = afero.WriteFile(f, "problems/category/aplusb/feladat.xhtml", []byte("lalal"), 0644)
+	_ = f.MkdirAll("problems/aplusb2", 0755)
+	_ = afero.WriteFile(f, "problems/aplusb2/feladat.xhtml", []byte("lalal"), 0644)
+
+	store := problems.NewFsStore("problems/", problems.FsStoreUseFs(f), problems.FsStoreUseConfigStore(configStore))
+	update := func(wantParsed int) {
+		parsed = 0
+		assert.Nil(t, store.UpdateProblems())
+		assert.Equal(t, wantParsed, parsed)
+
+		lst, err := store.ListProblems()
+		assert.Nil(t, err)
+		assert.ElementsMatch(t, []string{"aplusb", "aplusb2"}, lst)
+	}
+
+	update(2)
+	update(0)
+
+	assert.Nil(t, f.Chtimes("problems/aplusb2/feladat.xhtml", time.Now(), time.Now().Add(time.Hour)))
+	update(1)
+	update(0)
+
+	assert.Nil(t, afero.WriteFile(f, "problems/category/aplusb/feladat.xhtml", []byte("lalalalala"), 0644))
+	update(1)
+	update(0)
 }
