@@ -3,7 +3,8 @@ package evaluation
 import (
 	"context"
 	"github.com/mraron/njudge/pkg/problems"
-	"golang.org/x/time/rate"
+	"sync"
+	"time"
 )
 
 type IgnoreStatusUpdate struct{}
@@ -41,24 +42,40 @@ func (c ChanStatusUpdate) Done(_ context.Context) error {
 }
 
 type RateLimitStatusUpdate struct {
-	su      problems.StatusUpdater
-	limiter *rate.Limiter
+	su    problems.StatusUpdater
+	every time.Duration
+
+	mutex sync.Mutex
+	last  time.Time
 }
 
-func NewRateLimitStatusUpdate(innerUpdater problems.StatusUpdater, r rate.Limit) *RateLimitStatusUpdate {
+// NewRateLimitStatusUpdate drops the updates which come sooner than every after the last forwarded one.
+func NewRateLimitStatusUpdate(innerUpdater problems.StatusUpdater, every time.Duration) *RateLimitStatusUpdate {
 	return &RateLimitStatusUpdate{
-		su:      innerUpdater,
-		limiter: rate.NewLimiter(r, 1),
+		su:    innerUpdater,
+		every: every,
 	}
 }
 
-func (r RateLimitStatusUpdate) UpdateStatus(ctx context.Context, testcase string, status problems.Status) error {
-	if r.limiter.Allow() {
+func (r *RateLimitStatusUpdate) allow() bool {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	now := time.Now()
+	if !r.last.IsZero() && now.Sub(r.last) < r.every {
+		return false
+	}
+	r.last = now
+	return true
+}
+
+func (r *RateLimitStatusUpdate) UpdateStatus(ctx context.Context, testcase string, status problems.Status) error {
+	if r.allow() {
 		return r.su.UpdateStatus(ctx, testcase, status)
 	}
 	return nil
 }
 
-func (r RateLimitStatusUpdate) Done(ctx context.Context) error {
+func (r *RateLimitStatusUpdate) Done(ctx context.Context) error {
 	return r.su.Done(ctx)
 }

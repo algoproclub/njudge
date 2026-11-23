@@ -1,11 +1,11 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/mraron/njudge/internal/njudge"
 	"github.com/mraron/njudge/internal/njudge/db/models"
-	"golang.org/x/net/context"
 )
 
 type Problemsets struct {

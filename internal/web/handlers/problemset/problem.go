@@ -12,11 +12,11 @@ import (
 	"github.com/mraron/njudge/pkg/language/memory"
 	"github.com/mraron/njudge/pkg/problems"
 	"github.com/mraron/njudge/pkg/problems/evaluation/output_only"
-	"golang.org/x/exp/slices"
 	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"time"
 )

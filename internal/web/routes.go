@@ -18,7 +18,6 @@ import (
 	"github.com/mraron/njudge/internal/web/handlers/user/profile"
 	"github.com/mraron/njudge/internal/web/templates"
 	"github.com/mraron/njudge/internal/web/templates/i18n"
-	"github.com/quasoft/memstore"
 	slogecho "github.com/samber/slog-echo"
 
 	"github.com/labstack/echo/v4"
@@ -196,7 +195,7 @@ func (s *Server) SetupEcho(ctx context.Context, e *echo.Echo) {
 			panic(err)
 		}
 	} else {
-		store = memstore.NewMemStore(
+		store = sessions.NewCookieStore(
 			[]byte("authkey123"),
 			[]byte("enckey12341234567890123456789012"),
 		)

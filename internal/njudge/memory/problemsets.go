@@ -2,8 +2,8 @@ package memory
 
 import (
 	"cmp"
+	"context"
 	"github.com/mraron/njudge/internal/njudge"
-	"golang.org/x/net/context"
 	"slices"
 	"sync"
 )

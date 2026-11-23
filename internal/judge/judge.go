@@ -17,7 +17,6 @@ import (
 	"github.com/mraron/njudge/pkg/language/sandbox"
 	"github.com/mraron/njudge/pkg/problems"
 	"github.com/mraron/njudge/pkg/problems/evaluation"
-	"golang.org/x/time/rate"
 )
 
 type ResultCallback func(Result) error
@@ -99,7 +98,7 @@ func (j *Judge) Judge(ctx context.Context, sub Submission, callback ResultCallba
 
 	j.Logger.Info("🔥\tstart evaluation", "submission_id", sub.ID)
 	innerUpdater, updates := evaluation.NewChanStatusUpdate()
-	updater := evaluation.NewRateLimitStatusUpdate(innerUpdater, rate.Every(j.RateLimit))
+	updater := evaluation.NewRateLimitStatusUpdate(innerUpdater, j.RateLimit)
 	done := make(chan struct{})
 	go func() {
 		ind := 1
