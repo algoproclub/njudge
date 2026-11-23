@@ -14,6 +14,7 @@ require (
 	github.com/labstack/echo-contrib v0.17.1
 	github.com/labstack/echo/v4 v4.16.6
 	github.com/lib/pq v1.10.9
+	github.com/mailersend/mailersend-go v1.6.2
 	github.com/markbates/goth v1.80.0
 	github.com/samber/slog-echo v1.14.1
 	github.com/sendgrid/sendgrid-go v3.14.0+incompatible
@@ -42,6 +43,7 @@ require (
 	github.com/ericlagergren/decimal v0.0.0-20190420051523-6335edbaa640 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/context v1.1.2 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
