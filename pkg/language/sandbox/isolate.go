@@ -63,6 +63,10 @@ func (i *Isolate) Id() string {
 	return "isolate" + strconv.Itoa(i.ID)
 }
 
+func (i *Isolate) SupportsDirectoryMaps() bool {
+	return true
+}
+
 func (i *Isolate) Init(ctx context.Context) error {
 	// cleanup because the previous invocation might not have cleaned up
 	if err := i.Cleanup(ctx); err != nil {

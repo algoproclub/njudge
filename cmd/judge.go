@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/mraron/njudge/internal/judge"
 	"github.com/mraron/njudge/pkg/language"
+	"github.com/mraron/njudge/pkg/language/langs/cpp"
 	"github.com/mraron/njudge/pkg/language/sandbox"
 	"github.com/mraron/njudge/pkg/problems"
 	"github.com/spf13/cobra"
@@ -25,6 +26,9 @@ type JudgeConfig struct {
 
 	UpdateStatusLimitEvery time.Duration `mapstructure:"update_status_limit_every" yaml:"update_status_limit_every"`
 
+	PCHCacheDir  string `mapstructure:"pch_cache_dir" yaml:"pch_cache_dir"`
+	PCHCacheSize int64  `mapstructure:"pch_cache_size" yaml:"pch_cache_size"`
+
 	Concurrency       int    `mapstructure:"concurrency" yaml:"concurrency"`
 	DiscordWebhookURL string `mapstructure:"discord_webhook_url" yaml:"discord_webhook_url"`
 }
@@ -35,6 +39,8 @@ var DefaultJudgeConfig = JudgeConfig{
 	Isolate:                true,
 	IsolateSandboxRange:    []int{400, 444},
 	UpdateStatusLimitEvery: 5 * time.Second,
+	PCHCacheDir:            cpp.DefaultPCHCacheDir,
+	PCHCacheSize:           cpp.DefaultPCHCacheSize,
 	Concurrency:            4,
 }
 
@@ -75,6 +81,8 @@ func NewJudgeCmd(v *viper.Viper) *cobra.Command {
 			}
 
 			logger := getHookedLogger(cfg.DiscordWebhookURL)
+
+			cpp.ConfigureDefaultPCHCache(cfg.PCHCacheDir, cfg.PCHCacheSize)
 
 			store := problems.NewFsStore(cfg.ProblemsDir)
 			provider := sandbox.NewProvider()
@@ -134,6 +142,8 @@ func NewJudgeCmd(v *viper.Viper) *cobra.Command {
 	cmd.Flags().BoolVar(&cfg.Isolate, "isolate", DefaultJudgeConfig.Isolate, "use isolate (otherwise dummy sandboxes are used which are NOT secure)")
 	cmd.Flags().IntSliceVar(&cfg.IsolateSandboxRange, "isolate_sandbox_range", DefaultJudgeConfig.IsolateSandboxRange, "inclusive interval of isolate sandbox IDs")
 	cmd.Flags().DurationVar(&cfg.UpdateStatusLimitEvery, "updateStatus_limit_every", DefaultJudgeConfig.UpdateStatusLimitEvery, "the rate of status updates for the clients")
+	cmd.Flags().StringVar(&cfg.PCHCacheDir, "pch_cache_dir", DefaultJudgeConfig.PCHCacheDir, "directory of the C++ precompiled header cache (empty to disable)")
+	cmd.Flags().Int64Var(&cfg.PCHCacheSize, "pch_cache_size", DefaultJudgeConfig.PCHCacheSize, "maximum size of the C++ precompiled header cache in bytes")
 	cmd.Flags().IntVar(&cfg.Concurrency, "concurrency", DefaultJudgeConfig.Concurrency, "the maximum number of concurrently executed testcase")
 
 	return cmd

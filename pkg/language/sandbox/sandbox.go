@@ -189,6 +189,11 @@ type Sandbox interface {
 	Cleanup(ctx context.Context) error
 }
 
+// DirectoryMapper can be implemented by Sandboxes to tell whether they honor RunConfig.DirectoryMaps.
+type DirectoryMapper interface {
+	SupportsDirectoryMaps() bool
+}
+
 // Provider can be used to store Sandboxes
 type Provider interface {
 	// Get acquires a Sandbox, blocking until one is available or ctx is done.

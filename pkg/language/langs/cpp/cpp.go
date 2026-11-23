@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -24,8 +27,7 @@ type Cpp struct {
 
 	compileArgs []string
 
-	pchCacheDir     string
-	pchCacheSize    int64
+	pch             *pchCache
 	maxArtifactSize int64
 }
 
@@ -40,8 +42,16 @@ func WithCompileArgs(args []string) Option {
 
 func WithPCHCache(dir string, cacheSize int64) Option {
 	return func(cpp *Cpp) {
-		cpp.pchCacheDir = dir
-		cpp.pchCacheSize = cacheSize
+		if dir == "" {
+			cpp.pch = nil
+			return
+		}
+		cpp.pch = &pchCache{
+			dir:         dir,
+			maxSize:     cacheSize,
+			building:    make(map[string]bool),
+			failedUntil: make(map[string]time.Time),
+		}
 	}
 }
 
@@ -76,7 +86,7 @@ func (c Cpp) DefaultFilename() string {
 	return "main.cpp"
 }
 
-func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Writer, extraArgs []string) (*sandbox.Status, error) {
+func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Writer, extraArgs []string, dirMaps []sandbox.DirectoryMap) (*sandbox.Status, error) {
 	rc := sandbox.RunConfig{
 		MaxProcesses:     200,
 		InheritEnv:       true,
@@ -85,6 +95,7 @@ func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Write
 		Stdout:           output,
 		Stderr:           output,
 		WorkingDirectory: s.Pwd(),
+		DirectoryMaps:    dirMaps,
 	}
 
 	return s.Run(
@@ -95,107 +106,227 @@ func (c Cpp) runCompiler(ctx context.Context, s sandbox.Sandbox, output io.Write
 	)
 }
 
-func (c Cpp) cleanUpPCHCache() {
+// pchCache is the shared state of a precompiled header cache, which is laid out as <dir>/<key>/bits/stdc++.h.gch.
+type pchCache struct {
+	dir     string
+	maxSize int64
+
+	sync.Mutex
+	building    map[string]bool
+	failedUntil map[string]time.Time
+}
+
+const pchFileName = "stdc++.h.gch"
+
+// pchRetryAfter is the time to wait before building a PCH again after a failed build.
+const pchRetryAfter = 10 * time.Minute
+
+func (p *pchCache) startBuild(key string) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.building[key] || time.Now().Before(p.failedUntil[key]) {
+		return false
+	}
+	p.building[key] = true
+	return true
+}
+
+func (p *pchCache) finishBuild(key string, err error) {
+	p.Lock()
+	defer p.Unlock()
+
+	delete(p.building, key)
+	if err != nil {
+		p.failedUntil[key] = time.Now().Add(pchRetryAfter)
+	}
+}
+
+func (p *pchCache) file(key string) string {
+	return filepath.Join(p.dir, key, "bits", pchFileName)
+}
+
+// cleanUp removes the least recently used PCHs (except for keep) until the cache fits into maxSize.
+func (p *pchCache) cleanUp(keep string) {
 	type Entry struct {
 		Name string
-		Time int64
+		Time time.Time
 		Size int64
 	}
 	entries := []Entry{}
 	var totalSize int64 = 0
 
-	filepath.WalkDir(c.pchCacheDir, func(path string, file os.DirEntry, err error) error {
-		if file.IsDir() {
-			return filepath.SkipDir
+	files, err := os.ReadDir(p.dir)
+	if err != nil {
+		return
+	}
+
+	for _, file := range files {
+		info, err := file.Info()
+		if err != nil {
+			continue
 		}
 
-		if !strings.HasSuffix(file.Name(), ".gch") {
-			return nil
+		if !file.IsDir() {
+			if strings.HasPrefix(file.Name(), ".build-") && time.Since(info.ModTime()) > time.Hour {
+				_ = os.Remove(filepath.Join(p.dir, file.Name()))
+			}
+			continue
 		}
 
-		if info, err := file.Info(); err == nil {
-			entries = append(entries, Entry{
-				Name: file.Name(),
-				Time: info.ModTime().Unix(),
-				Size: info.Size(),
-			})
-
-			totalSize += info.Size()
+		gch, err := os.Stat(p.file(file.Name()))
+		if err != nil {
+			continue
 		}
-		return nil
-	})
+		entries = append(entries, Entry{
+			Name: file.Name(),
+			Time: gch.ModTime(),
+			Size: gch.Size(),
+		})
+		totalSize += gch.Size()
+	}
 
 	slices.SortFunc(entries, func(i, j Entry) int {
-		return int(i.Time - j.Time)
+		return i.Time.Compare(j.Time)
 	})
 
 	for _, entry := range entries {
-		if totalSize <= c.pchCacheSize {
+		if totalSize <= p.maxSize {
 			break
 		}
 
-		if err := os.Remove(c.pchCacheDir + "/" + entry.Name); err != nil {
+		if entry.Name == keep {
+			continue
+		}
+
+		if err := os.RemoveAll(filepath.Join(p.dir, entry.Name)); err != nil {
 			continue
 		}
 		totalSize -= entry.Size
 	}
 }
 
-func (c Cpp) buildPCH(ctx context.Context, s sandbox.Sandbox) *os.File {
-	if c.pchCacheDir == "" {
-		return nil
+func (c Cpp) buildPCH(ctx context.Context, s sandbox.Sandbox, key string) error {
+	if err := sandbox.CreateFile(s, sandbox.File{
+		Name:   "pch.h",
+		Source: io.NopCloser(strings.NewReader("#include <bits/stdc++.h>")),
+	}); err != nil {
+		return err
 	}
 
+	status, err := c.runCompiler(ctx, s, io.Discard, []string{"pch.h", "-o", pchFileName}, nil)
+	if err != nil {
+		return err
+	}
+	if status.Verdict != sandbox.VerdictOK {
+		return fmt.Errorf("pch build failed: %v", status.Verdict)
+	}
+
+	file, err := s.Open(pchFileName)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err := os.MkdirAll(c.pch.dir, 0755); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(c.pch.dir, ".build-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	_, err = io.Copy(tmp, file)
+	if err == nil {
+		err = tmp.Chmod(0644)
+	}
+	if err = errors.Join(err, tmp.Close()); err != nil {
+		return err
+	}
+
+	lock := flock.New(filepath.Join(c.pch.dir, "cache.lock"))
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(c.pch.file(key)), 0755); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp.Name(), c.pch.file(key)); err != nil {
+		return err
+	}
+
+	c.pch.cleanUp(key)
+	return nil
+}
+
+// pchKey identifies the PCH of the current compiler and flags.
+func (c Cpp) pchKey() (string, error) {
 	// Pre-compiled headers can only be used with the same compiler and flags they were built with.
 	cacheKey := sha1.New()
 
 	compilerInfo, err := os.Stat("/usr/bin/g++")
 	if err != nil {
-		return nil
+		return "", err
 	}
 	io.WriteString(cacheKey, compilerInfo.ModTime().String())
 	io.WriteString(cacheKey, strings.Join(c.compileArgs, " "))
-	pchFileName := hex.EncodeToString(cacheKey.Sum(nil)) + ".gch"
+	return hex.EncodeToString(cacheKey.Sum(nil)), nil
+}
 
-	if cachedFile, err := os.Open(c.pchCacheDir + "/" + pchFileName); err == nil {
-		return cachedFile
+// usePCH makes the precompiled header available for the compilation inside s, building it if necessary.
+// It returns the directory maps and the compiler arguments needed to use it, both are empty if no PCH can be used.
+func (c Cpp) usePCH(ctx context.Context, s sandbox.Sandbox) ([]sandbox.DirectoryMap, []string) {
+	if c.pch == nil {
+		return nil, nil
 	}
 
-	if err := sandbox.CreateFile(s, sandbox.File{
-		Name:   "pch.h",
-		Source: io.NopCloser(strings.NewReader("#include <bits/stdc++.h>")),
-	}); err != nil {
-		return nil
-	}
-
-	if _, err := c.runCompiler(ctx, s, io.Discard, []string{"pch.h", "-o", pchFileName}); err != nil {
-		return nil
-	}
-
-	file, err := sandbox.ExtractFile(s, pchFileName)
+	key, err := c.pchKey()
 	if err != nil {
-		return nil
-	}
-	defer file.Source.Close()
-
-	lock := flock.New(c.pchCacheDir + "/cache.lock")
-	lock.Lock()
-	defer lock.Unlock()
-
-	outFile, err := os.Create(c.pchCacheDir + "/" + pchFileName)
-	if err != nil {
-		return nil
+		return nil, nil
 	}
 
-	if _, err := io.Copy(outFile, file.Source); err != nil {
-		return nil
+	if _, err := os.Stat(c.pch.file(key)); err == nil {
+		now := time.Now() // least recently used PCHs are evicted first
+		_ = os.Chtimes(c.pch.file(key), now, now)
+	} else {
+		if !c.pch.startBuild(key) {
+			return nil, nil
+		}
+		err := c.buildPCH(ctx, s, key)
+		if ctx.Err() != nil {
+			c.pch.finishBuild(key, nil) // a cancelled build isn't a failed one
+		} else {
+			c.pch.finishBuild(key, err)
+		}
+		if err != nil {
+			return nil, nil
+		}
 	}
-	outFile.Sync()
-	outFile.Seek(0, io.SeekStart)
 
-	c.cleanUpPCHCache()
+	if mapper, ok := s.(sandbox.DirectoryMapper); ok && mapper.SupportsDirectoryMaps() {
+		return []sandbox.DirectoryMap{{Inside: "/pch", Outside: filepath.Join(c.pch.dir, key)}}, []string{"-isystem", "/pch"}
+	}
 
-	return outFile
+	if err := s.MkdirAll("pch/bits", 0755); err != nil {
+		return nil, nil
+	}
+	if err := os.Link(c.pch.file(key), filepath.Join(s.Pwd(), "pch", "bits", pchFileName)); err != nil {
+		file, err := os.Open(c.pch.file(key))
+		if err != nil {
+			return nil, nil
+		}
+		if err := sandbox.CreateFile(s, sandbox.File{
+			Name:   filepath.Join("pch", "bits", pchFileName),
+			Source: file,
+		}); err != nil {
+			return nil, nil
+		}
+	}
+	return nil, []string{"-isystem", "pch"}
 }
 
 func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, stderr io.Writer, extras []sandbox.File) (*sandbox.File, error) {
@@ -216,19 +347,10 @@ func (c Cpp) Compile(ctx context.Context, s sandbox.Sandbox, f sandbox.File, std
 		}
 	}
 
-	if pch := c.buildPCH(ctx, s); pch != nil {
-		s.MkdirAll("/pch/bits", 0755)
-		err = sandbox.CreateFile(s, sandbox.File{
-			Name:   "/pch/bits/stdc++.h.gch",
-			Source: pch,
-		})
+	dirMaps, pchParams := c.usePCH(ctx, s)
+	extraParams = append(extraParams, pchParams...)
 
-		if err == nil {
-			extraParams = append(extraParams, "-isystem", "pch")
-		}
-	}
-
-	if _, err := c.runCompiler(ctx, s, stderr, extraParams); err != nil {
+	if _, err := c.runCompiler(ctx, s, stderr, extraParams, dirMaps); err != nil {
 		return nil, err
 	}
 
@@ -245,9 +367,20 @@ func (Cpp) Run(ctx context.Context, s sandbox.Sandbox, binary sandbox.File, stdi
 
 var DefaultCompileArgs = []string{"-O2", "-static", "-DONLINE_JUDGE"}
 
-var Std11 = New("cpp11", "C++ 11", WithCompileArgs(append(DefaultCompileArgs, "-std=c++11")))
-var Std14 = New("cpp14", "C++ 14", WithCompileArgs(append(DefaultCompileArgs, "-std=c++14")))
-var Std17 = New("cpp17", "C++ 17", WithCompileArgs(append(DefaultCompileArgs, "-std=c++17")))
+var DefaultPCHCacheDir = filepath.Join(os.TempDir(), "njudge", "pch")
+
+const DefaultPCHCacheSize = 1 << 30
+
+var Std11 = New("cpp11", "C++ 11", WithCompileArgs(append(DefaultCompileArgs, "-std=c++11")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
+var Std14 = New("cpp14", "C++ 14", WithCompileArgs(append(DefaultCompileArgs, "-std=c++14")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
+var Std17 = New("cpp17", "C++ 17", WithCompileArgs(append(DefaultCompileArgs, "-std=c++17")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
+
+// ConfigureDefaultPCHCache changes the PCH cache of Std11, Std14 and Std17, an empty dir disables it.
+func ConfigureDefaultPCHCache(dir string, cacheSize int64) {
+	for _, c := range []*Cpp{Std11, Std14, Std17} {
+		WithPCHCache(dir, cacheSize)(c)
+	}
+}
 
 func init() {
 	language.DefaultStore.Register("cpp11", Std11)
