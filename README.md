@@ -23,7 +23,7 @@ make build
 
 Then, run the migrations:
 ```
-docker-compose run web ./njudge web migrate --up
+docker compose run web ./njudge web migrate --up
 ```
 
 Modify the environment files `web.env` and `judge.env`. Typically only `web.env` needs to be changed. A quite minimal `web.env` file for example would be:

@@ -2406,7 +2406,7 @@ func ProblemSubmit(vm ProblemSubmitViewModel) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</button></form><style>\n                textarea[name=\"submissionCode\"] {\n                    display: none;\n                }\n                #editor {\n                    width: 100%;\n                    height: 500px;\n                }\n            </style> <script src=\"https://cdn.jsdelivr.net/npm/ace-builds@1.22.0/src-min-noconflict/ace.min.js \"></script> <link href=\"https://cdn.jsdelivr.net/npm/ace-builds@1.22.0/css/ace.min.css \" rel=\"stylesheet\"><script>\n                const editor = ace.edit(\"editor\", {\n                    \"mode\": \"ace/mode/c_cpp\"\n                });\n                const textarea = document.querySelector('textarea[name=\"submissionCode\"]');\n\n                editor.getSession().setValue(textarea.value);\n                editor.getSession().on('change', function(){\n                    textarea.value = editor.getSession().getValue();\n                });\n\n                const languagesList = document.querySelector('#languagesList');\n                const convertLang = {\n                    \"cpp11\": \"c_cpp\",\n                    \"cpp14\": \"c_cpp\",\n                    \"cpp17\": \"c_cpp\",\n                    \"csharp\": \"csharp\",\n                    \"golang\": \"golang\",\n                    \"java\": \"java\",\n                    \"julia\": \"julia\",\n                    \"nim\": \"nim\",\n                    \"pascal\": \"pascal\",\n                    \"pypy3\": \"python\",\n                    \"python3\": \"python\"\n                };\n\n                const updateLanguage = function() {\n                    let langCode = \"text\";\n                    if(languagesList.value in convertLang)\n                        langCode = convertLang[languagesList.value];\n\n                    editor.getSession().setMode({\n                        path: \"ace/mode/\"+langCode\n                    });\n                }\n                window.onload = updateLanguage;\n                languagesList.onchange = updateLanguage;\n            </script>")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</button></form><style>\n                textarea[name=\"submissionCode\"] {\n                    display: none;\n                }\n                #editor {\n                    width: 100%;\n                    height: 500px;\n                }\n            </style> <script src=\"https://cdn.jsdelivr.net/npm/ace-builds@1.22.0/src-min-noconflict/ace.min.js \"></script> <link href=\"https://cdn.jsdelivr.net/npm/ace-builds@1.22.0/css/ace.min.css \" rel=\"stylesheet\"><script>\n                const editor = ace.edit(\"editor\", {\n                    \"mode\": \"ace/mode/c_cpp\"\n                });\n                const textarea = document.querySelector('textarea[name=\"submissionCode\"]');\n\n                editor.getSession().setValue(textarea.value);\n                editor.getSession().on('change', function(){\n                    textarea.value = editor.getSession().getValue();\n                });\n\n                const languagesList = document.querySelector('#languagesList');\n                const convertLang = {\n                    \"cpp11\": \"c_cpp\",\n                    \"cpp14\": \"c_cpp\",\n                    \"cpp17\": \"c_cpp\",\n                    \"cpp20\": \"c_cpp\",\n                    \"csharp\": \"csharp\",\n                    \"golang\": \"golang\",\n                    \"java\": \"java\",\n                    \"julia\": \"julia\",\n                    \"nim\": \"nim\",\n                    \"pascal\": \"pascal\",\n                    \"pypy3\": \"python\",\n                    \"python3\": \"python\"\n                };\n\n                const updateLanguage = function() {\n                    let langCode = \"text\";\n                    if(languagesList.value in convertLang)\n                        langCode = convertLang[languagesList.value];\n\n                    editor.getSession().setMode({\n                        path: \"ace/mode/\"+langCode\n                    });\n                }\n                window.onload = updateLanguage;\n                languagesList.onchange = updateLanguage;\n            </script>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2479,7 +2479,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 			var templ_7745c5c3_Var131 string
 			templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(Tr(ctx, "Category"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 601, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 602, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 			if templ_7745c5c3_Err != nil {
@@ -2497,7 +2497,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 				var templ_7745c5c3_Var132 string
 				templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(category.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 605, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 606, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 				if templ_7745c5c3_Err != nil {
@@ -2520,7 +2520,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 				var templ_7745c5c3_Var133 string
 				templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs(category.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 605, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 606, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 				if templ_7745c5c3_Err != nil {
@@ -2538,7 +2538,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 			var templ_7745c5c3_Var134 string
 			templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(Tr(ctx, "Author"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 611, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 612, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 			if templ_7745c5c3_Err != nil {
@@ -2551,7 +2551,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 			var templ_7745c5c3_Var135 string
 			templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Author)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 613, Col: 98}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 614, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var135))
 			if templ_7745c5c3_Err != nil {
@@ -2574,7 +2574,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 			var templ_7745c5c3_Var136 string
 			templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(Tr(ctx, "Visible"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 618, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 619, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 			if templ_7745c5c3_Err != nil {
@@ -2595,7 +2595,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 			var templ_7745c5c3_Var137 string
 			templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(Tr(ctx, "Edit"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 623, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 624, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 			if templ_7745c5c3_Err != nil {
@@ -2608,7 +2608,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 			var templ_7745c5c3_Var138 string
 			templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(Tr(ctx, "Tags"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 627, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 628, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 			if templ_7745c5c3_Err != nil {
@@ -2626,7 +2626,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 				var templ_7745c5c3_Var139 string
 				templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.JoinStringErrs(tag.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 631, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 632, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var139))
 				if templ_7745c5c3_Err != nil {
@@ -2648,7 +2648,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 				var templ_7745c5c3_Var141 string
 				templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(tag.User)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 632, Col: 80}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 633, Col: 80}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 				if templ_7745c5c3_Err != nil {
@@ -2661,7 +2661,7 @@ func ProblemEdit(vm ProblemEditViewModel) templ.Component {
 				var templ_7745c5c3_Var142 string
 				templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(tag.Added.Format(time.DateTime))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 633, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/problem.templ`, Line: 634, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 				if templ_7745c5c3_Err != nil {

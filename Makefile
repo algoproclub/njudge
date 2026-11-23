@@ -33,6 +33,6 @@ test: ## run tests
 templ:
 	templ generate
 
-up: build ## builds and runs docker-compose up
-	COMPOSE_PROJECT_NAME="$(PROJECT_NAME)" docker-compose up
+up: build ## builds and runs docker compose up
+	COMPOSE_PROJECT_NAME="$(PROJECT_NAME)" docker compose up
 

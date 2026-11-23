@@ -374,10 +374,11 @@ const DefaultPCHCacheSize = 1 << 30
 var Std11 = New("cpp11", "C++ 11", WithCompileArgs(append(DefaultCompileArgs, "-std=c++11")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
 var Std14 = New("cpp14", "C++ 14", WithCompileArgs(append(DefaultCompileArgs, "-std=c++14")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
 var Std17 = New("cpp17", "C++ 17", WithCompileArgs(append(DefaultCompileArgs, "-std=c++17")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
+var Std20 = New("cpp20", "C++ 20", WithCompileArgs(append(DefaultCompileArgs, "-std=c++20")), WithPCHCache(DefaultPCHCacheDir, DefaultPCHCacheSize))
 
-// ConfigureDefaultPCHCache changes the PCH cache of Std11, Std14 and Std17, an empty dir disables it.
+// ConfigureDefaultPCHCache changes the PCH cache of Std11, Std14, Std17 and Std20, an empty dir disables it.
 func ConfigureDefaultPCHCache(dir string, cacheSize int64) {
-	for _, c := range []*Cpp{Std11, Std14, Std17} {
+	for _, c := range []*Cpp{Std11, Std14, Std17, Std20} {
 		WithPCHCache(dir, cacheSize)(c)
 	}
 }
@@ -386,4 +387,5 @@ func init() {
 	language.DefaultStore.Register("cpp11", Std11)
 	language.DefaultStore.Register("cpp14", Std14)
 	language.DefaultStore.Register("cpp17", Std17)
+	language.DefaultStore.Register("cpp20", Std20)
 }

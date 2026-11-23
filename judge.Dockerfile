@@ -1,25 +1,37 @@
 ARG PROJECT_NAME
 
-FROM debian:bookworm as judge_deps
-RUN apt-get update
-RUN apt-get install -y wget gcc g++ git build-essential
-RUN apt-get install -y libcap-dev systemd libsystemd-dev pkgconf
+FROM debian:trixie-slim AS judge_deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates git gcc libc6-dev make libcap-dev libsystemd-dev pkgconf \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN git clone --depth 1 --branch v2.2.1 https://github.com/ioi/isolate.git
 WORKDIR /app/isolate
-RUN make isolate isolate-cg-keeper
+RUN make isolate isolate-cg-keeper && make install DESTDIR=/out
 
-FROM ${PROJECT_NAME}-base
+FROM ${PROJECT_NAME}-base AS njudge-bin
 
-RUN apt-get update && apt-get install -y openjdk-17-jdk mono-mcs fpc cython3 golang pandoc gccgo pypy3 python3-dev g++ gcc libsystemd-dev
-COPY --from=judge_deps /app/isolate /app/isolate
-WORKDIR /app/isolate
-RUN make install
+FROM debian:trixie-slim
+ENV TZ=Europe/Budapest
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates tzdata pandoc gcc g++ libc6-dev \
+        openjdk-25-jdk-headless mono-mcs fpc cython3 gccgo python3-dev \
+        libcap2 libsystemd0 \
+        libexpat1 libncurses6 libsqlite3-0 libssl3t64 libbz2-1.0 zlib1g libffi8 liblzma5 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=judge_deps /out/ /
+
+# PyPy 8.0.1 (Python 3.12) from the official image
+COPY --from=pypy:3.12-8.0.1-trixie /opt/pypy /opt/pypy
 COPY --from=julia:1.10.1 /usr/local/julia/ /usr/local/julia
-COPY --from=nimlang/nim:1.6.18 /usr/bin/nim /usr/bin/nim
-RUN ln -s /usr/local/julia/bin/julia /usr/local/bin/julia
+COPY --from=nimlang/nim:1.6.18 /opt/nim /opt/nim
+RUN ln -s /opt/pypy/bin/pypy3 /usr/bin/pypy3 && \
+    ln -s /usr/local/julia/bin/julia /usr/local/bin/julia && \
+    ln -s /opt/nim/bin/nim /usr/bin/nim
 
 WORKDIR /app
+COPY --from=njudge-bin /app/njudge ./njudge
 COPY configs/docker/judge.yaml ./judge.yaml
 CMD ["./njudge", "judge"]
