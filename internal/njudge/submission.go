@@ -118,6 +118,13 @@ type SubmissionsQuery interface {
 }
 
 var ErrorUnsupportedLanguage = errors.New("njudge: unsupported language")
+var ErrorSourceTooLarge = errors.New("njudge: source is too large")
+
+// MaxSourceSize is the maximum size of a source file in bytes, MaxZipSourceSize is the same for the zip submissions of output only problems.
+const (
+	MaxSourceSize    = 512 << 10
+	MaxZipSourceSize = 4 << 20
+)
 
 type SubmitRequest struct {
 	UserID     int
@@ -155,6 +162,14 @@ func (s *SubmitService) Submit(ctx context.Context, req SubmitRequest) (*Submiss
 	var lang language.Language
 	if lang = storedData.GetLanguage(req.Language); lang == nil {
 		return nil, ErrorUnsupportedLanguage
+	}
+
+	sizeLimit := MaxSourceSize
+	if lang.ID() == "zip" {
+		sizeLimit = MaxZipSourceSize
+	}
+	if len(req.Source) > sizeLimit {
+		return nil, ErrorSourceTooLarge
 	}
 
 	u, err := s.users.Get(ctx, req.UserID)

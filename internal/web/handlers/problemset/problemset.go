@@ -1,6 +1,7 @@
 package problemset
 
 import (
+	"errors"
 	"fmt"
 	"github.com/a-h/templ"
 	"github.com/mraron/njudge/internal/web/handlers/user"
@@ -330,7 +331,8 @@ func PostSubmit(submissions njudge.Submissions, subService *njudge.SubmitService
 				return err
 			}
 
-			contents, err := io.ReadAll(f)
+			// reads one byte more than the largest allowed source, so that SubmitService rejects the oversized ones
+			contents, err := io.ReadAll(io.LimitReader(f, njudge.MaxZipSourceSize+1))
 			if err != nil {
 				return err
 			}
@@ -348,6 +350,9 @@ func PostSubmit(submissions njudge.Submissions, subService *njudge.SubmitService
 			Language:   data.LanguageName,
 			Source:     []byte(code),
 		})
+		if errors.Is(err, njudge.ErrorSourceTooLarge) {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, err.Error())
+		}
 		if err != nil {
 			return err
 		}

@@ -205,6 +205,7 @@ func (s *Server) SetupEcho(ctx context.Context, e *echo.Echo) {
 	e.Use(slogecho.New(s.Logger))
 	e.Use(i18n.SetTranslatorMiddleware()) // because we need translation on the error page
 	e.Use(middleware.Recover())
+	e.Use(middleware.BodyLimit("5M")) // a bit more than the largest submission (a zip), applied before anything reads the body
 	e.Use(session.Middleware(store))
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
