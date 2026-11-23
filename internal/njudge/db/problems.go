@@ -285,6 +285,34 @@ func NewSolvedStatusQuery(db *sql.DB) *SolvedStatusQuery {
 	return &SolvedStatusQuery{db: db}
 }
 
+func (ss *SolvedStatusQuery) GetSolvedStatusesForUser(ctx context.Context, userID int) (map[int]njudge.SolvedStatus, error) {
+	rows, err := ss.db.QueryContext(ctx,
+		`SELECT problem_id, bool_or(verdict = $2) FROM submissions WHERE user_id = $1 GROUP BY problem_id`,
+		userID, NjudgeVerdictToDatabase(njudge.VerdictAC),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make(map[int]njudge.SolvedStatus)
+	for rows.Next() {
+		var (
+			problemID int
+			solved    bool
+		)
+		if err := rows.Scan(&problemID, &solved); err != nil {
+			return nil, err
+		}
+		if solved {
+			res[problemID] = njudge.Solved
+		} else {
+			res[problemID] = njudge.Attempted
+		}
+	}
+	return res, rows.Err()
+}
+
 func (ss *SolvedStatusQuery) GetSolvedStatus(ctx context.Context, problemID, userID int) (njudge.SolvedStatus, error) {
 	solvedStatus := njudge.Unattempted
 

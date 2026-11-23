@@ -37,6 +37,9 @@ func GetTaskArchive(tas njudge.TaskArchiveService) echo.HandlerFunc {
 			if err != nil {
 				return err
 			}
+			if res == nil {
+				return echo.NewHTTPError(http.StatusNotFound)
+			}
 			vm.Root = *res
 		} else {
 			res, err = tas.CreateTopLevel(c.Request().Context(), u)

@@ -176,6 +176,9 @@ type ProblemInfoQuery interface {
 
 type SolvedStatusQuery interface {
 	GetSolvedStatus(ctx context.Context, problemID, userID int) (SolvedStatus, error)
+	// GetSolvedStatusesForUser returns the status of every problem the user has submitted to.
+	// Problems missing from the map are Unattempted. The returned map must be treated as read-only.
+	GetSolvedStatusesForUser(ctx context.Context, userID int) (map[int]SolvedStatus, error)
 }
 
 type ProblemQuery interface {

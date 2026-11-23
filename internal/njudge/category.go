@@ -101,7 +101,15 @@ type TaskArchiveService struct {
 	ProblemStore      problems.Store
 }
 
-func (tas TaskArchiveService) problemNode(ctx context.Context, p Problem, u *User) (*TaskArchiveNode, error) {
+// userStatuses loads the solved status of every problem for the user in one query.
+func (tas TaskArchiveService) userStatuses(ctx context.Context, u *User) (map[int]SolvedStatus, error) {
+	if u == nil || tas.SolvedStatusQuery == nil {
+		return nil, nil
+	}
+	return tas.SolvedStatusQuery.GetSolvedStatusesForUser(ctx, u.ID)
+}
+
+func (tas TaskArchiveService) problemNode(p Problem, u *User, statuses map[int]SolvedStatus) (*TaskArchiveNode, error) {
 	if !p.Visible && (u == nil || u.Role != "admin") {
 		return nil, nil
 	}
@@ -114,17 +122,17 @@ func (tas TaskArchiveService) problemNode(ctx context.Context, p Problem, u *Use
 	}
 
 	if u != nil {
-		solvedStatus, err := tas.SolvedStatusQuery.GetSolvedStatus(ctx, p.ID, u.ID)
-		if err != nil {
-			return nil, err
+		if status, ok := statuses[p.ID]; ok {
+			curr.SolvedStatus = status
+		} else {
+			curr.SolvedStatus = Unattempted
 		}
-		curr.SolvedStatus = solvedStatus
 	}
 
 	return curr, nil
 }
 
-func (tas TaskArchiveService) categoryNode(ctx context.Context, c Category, u *User, limit int) (*TaskArchiveNode, error) {
+func (tas TaskArchiveService) categoryNode(ctx context.Context, c Category, u *User, statuses map[int]SolvedStatus, limit int) (*TaskArchiveNode, error) {
 	if limit == 0 {
 		return nil, nil
 	}
@@ -146,9 +154,9 @@ func (tas TaskArchiveService) categoryNode(ctx context.Context, c Category, u *U
 		return problemList[i].ID < problemList[j].ID
 	})
 	for _, problem := range problemList {
-		if p, err := tas.problemNode(ctx, problem, u); err != nil {
+		if p, err := tas.problemNode(problem, u, statuses); err != nil {
 			return nil, err
-		} else {
+		} else if p != nil {
 			curr.Children = append(curr.Children, *p)
 		}
 	}
@@ -162,7 +170,7 @@ func (tas TaskArchiveService) categoryNode(ctx context.Context, c Category, u *U
 		return subCategories[i].Name < subCategories[j].Name
 	})
 	for _, category := range subCategories {
-		if cat, err := tas.categoryNode(ctx, category, u, limit-1); err != nil {
+		if cat, err := tas.categoryNode(ctx, category, u, statuses, limit-1); err != nil {
 			return nil, err
 		} else if cat != nil {
 			curr.Children = append(curr.Children, *cat)
@@ -172,7 +180,11 @@ func (tas TaskArchiveService) categoryNode(ctx context.Context, c Category, u *U
 }
 
 func (tas TaskArchiveService) CreateWithCategory(ctx context.Context, category Category, u *User) (*TaskArchiveNode, error) {
-	return tas.categoryNode(ctx, category, u, 999)
+	statuses, err := tas.userStatuses(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	return tas.categoryNode(ctx, category, u, statuses, 999)
 }
 
 func (tas TaskArchiveService) CreateWithRoot(ctx context.Context, categories []Category, u *User, limit int) (*TaskArchiveNode, error) {
@@ -182,8 +194,13 @@ func (tas TaskArchiveService) CreateWithRoot(ctx context.Context, categories []C
 		Visible: true,
 	}
 
+	statuses, err := tas.userStatuses(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, cat := range categories {
-		if curr, err := tas.categoryNode(ctx, cat, u, limit); err != nil {
+		if curr, err := tas.categoryNode(ctx, cat, u, statuses, limit); err != nil {
 			return nil, err
 		} else if curr != nil {
 			root.Children = append(root.Children, *curr)
