@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates tzdata pandoc gcc g++ libc6-dev \
         openjdk-25-jdk-headless mono-mcs fpc cython3 gccgo python3-dev \
         libcap2 libsystemd0 \
-        libexpat1 libncurses6 libsqlite3-0 libssl3t64 libbz2-1.0 zlib1g libffi8 liblzma5 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=judge_deps /out/ /
@@ -31,6 +30,13 @@ COPY --from=nimlang/nim:1.6.18 /opt/nim /usr/local/nim
 RUN ln -s /usr/local/pypy/bin/pypy3 /usr/bin/pypy3 && \
     ln -s /usr/local/julia/bin/julia /usr/local/bin/julia && \
     ln -s /usr/local/nim/bin/nim /usr/bin/nim
+
+# Ensure that the standard library is pre-compiled to bytecode (.pyc) so that
+# each run in isolate does not spend time building it, only to be discarded
+# afterwards as isolate does not have write access to the cache.
+# Also smoke test this by importing some common modules.
+RUN pypy3 -m compileall -q -j0 /usr/local/pypy/lib && \
+    pypy3 -c "import decimal, functools, itertools, math, random, sys"
 
 WORKDIR /app
 COPY --from=njudge-bin /app/njudge ./njudge
