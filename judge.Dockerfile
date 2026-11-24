@@ -2,10 +2,10 @@ ARG PROJECT_NAME
 
 FROM debian:trixie-slim AS judge_deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git gcc libc6-dev make libcap-dev libsystemd-dev pkgconf \
+        ca-certificates git gcc libc6-dev make libcap-dev libseccomp-dev libsystemd-dev pkgconf \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-RUN git clone --depth 1 --branch v2.2.1 https://github.com/ioi/isolate.git
+RUN git clone --depth 1 --branch v2.7 https://github.com/ioi/isolate.git
 WORKDIR /app/isolate
 RUN make isolate isolate-cg-keeper && make install DESTDIR=/out
 
@@ -17,10 +17,11 @@ ENV TZ=Europe/Budapest
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates tzdata pandoc gcc g++ libc6-dev \
         openjdk-25-jdk-headless mono-mcs fpc cython3 gccgo python3-dev \
-        libcap2 libsystemd0 \
+        libcap2 libseccomp2 libsystemd0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=judge_deps /out/ /
+COPY configs/docker/isolate.cf /usr/local/etc/isolate
 
 # PyPy 8.0.1 (Python 3.12) from the official image. PyPy, Julia and Nim live
 # under /usr/local, as isolate boxes only expose /usr, /bin and /lib*.

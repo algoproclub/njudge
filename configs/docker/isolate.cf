@@ -1,0 +1,19 @@
+# Configuration of isolate for the judge image, see judge.Dockerfile.
+# Based on isolate's default.cf, see isolate(1) for the available settings.
+
+# All sandboxes are created under this directory.
+box_root = /var/local/lib/isolate
+
+# Directory where lock files are created.
+lock_root = /run/isolate/locks
+
+# Control group under which the sandbox subgroups are placed; the path is
+# written by isolate-cg-keeper.
+cg_root = auto:/run/isolate/cgroup
+
+# UID and GID range of the sandboxes. isolate's default is to take it from the
+# /etc/subuid and /etc/subgid entries of an "isolate" user, which the judge
+# image does not have.
+first_uid = 60000
+first_gid = 60000
+num_boxes = 1000
