@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mraron/njudge/internal/web"
+	"github.com/mraron/njudge/pkg/language/langs/cpp"
 	"github.com/mraron/njudge/pkg/problems"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -76,6 +77,9 @@ func NewWebCmd(v *viper.Viper) *cobra.Command {
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// The web image has no C++ compiler; checkers etc. are compiled by the judge.
+			cpp.SkipAutoCompile = true
+
 			if err := v.Unmarshal(&cfg); err != nil {
 				return err
 			}

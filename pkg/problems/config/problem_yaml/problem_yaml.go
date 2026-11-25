@@ -452,9 +452,11 @@ func ParserAndIdentifier(opts ...Option) (problems.ConfigParser, problems.Config
 
 				*interactorPath = binaryName
 			}
-			p.Tests.interactorBinary, err = os.ReadFile(*interactorPath)
-			if err != nil {
-				return nil, err
+			if !cpp.SkipAutoCompile {
+				p.Tests.interactorBinary, err = os.ReadFile(*interactorPath)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 

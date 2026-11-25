@@ -471,9 +471,11 @@ func Parser(fs afero.Fs, path string) (problems.Problem, error) {
 				return nil, err
 			}
 
-			p.managerBinary, err = os.ReadFile(managerPath)
-			if err != nil {
-				return nil, err
+			if !cpp.SkipAutoCompile {
+				p.managerBinary, err = os.ReadFile(managerPath)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			p.files = append(p.files, problems.EvaluationFile{Name: "manager.cpp", Role: "interactor", Path: managerPath})
